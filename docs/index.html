@@ -5,15 +5,51 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>godot-correctness-mcp</title>
   <style>
-    body { font-family: system-ui, sans-serif; background: #0d1117; color: #e6edf3; margin: 0; padding: 2rem; }
-    h1 { color: #7c3aed; }
+    body { font-family: system-ui, sans-serif; background: #0d1117; color: #e6edf3; margin: 0; padding: 2rem; max-width: 52rem; line-height: 1.55; }
+    h1 { color: #7c3aed; margin-bottom: 0.25rem; }
+    h2 { color: #a78bfa; margin-top: 2rem; }
     a { color: #a78bfa; }
+    code, pre { background: #161b22; border-radius: 6px; }
+    code { padding: 0.1rem 0.35rem; }
+    pre { padding: 1rem; overflow-x: auto; }
+    ul { padding-left: 1.25rem; }
   </style>
 </head>
 <body>
   <h1>godot-correctness-mcp</h1>
-  <p>Offline static correctness MCP server for Godot 4.x GDScript projects</p>
-  <p>Full documentation will be available here once the server implementation is complete.</p>
-  <p><a href="https://github.com/TMHSDigital/godot-correctness-mcp">View on GitHub</a></p>
+  <p>Offline static correctness MCP server (and <code>gdcorrect</code> CLI) for Godot 4.x GDScript projects.
+     It runs headless, offline, and in CI: no editor, no running Godot instance, no network at runtime.</p>
+
+  <h2>Pillars</h2>
+  <ul>
+    <li><strong>GDScript linting</strong> with a committed tree-sitter grammar:
+      <a href="https://github.com/TMHSDigital/godot-correctness-mcp/blob/main/docs/lint.md">lint rules and config</a></li>
+    <li><strong>Cross-version API lookup and diff</strong> for Godot 4.4 and 4.5:
+      <a href="https://github.com/TMHSDigital/godot-correctness-mcp/blob/main/docs/symbol-db.md">symbol databases</a></li>
+    <li><strong>Scene, project, and registry analysis</strong> for <code>.tscn</code>, <code>.tres</code>, and <code>project.godot</code>:
+      <a href="https://github.com/TMHSDigital/godot-correctness-mcp/blob/main/docs/scenes.md">checks</a></li>
+  </ul>
+
+  <h2>Use it as an MCP server</h2>
+  <pre><code>{
+  "mcpServers": {
+    "godot-correctness": {
+      "command": "npx",
+      "args": ["-y", "@tmhs/godot-correctness-mcp"]
+    }
+  }
+}</code></pre>
+
+  <h2>Use it in CI</h2>
+  <pre><code>npx -y -p @tmhs/godot-correctness-mcp gdcorrect lint . --format json</code></pre>
+  <p>Exit code 0 is clean, 1 means error-severity findings, and 2 means a tool failure.</p>
+
+  <h2>Tools</h2>
+  <p><code>server_info</code>, <code>api_symbol_lookup</code>, <code>api_class_summary</code>, <code>api_diff</code>,
+     <code>lint_file</code>, <code>lint_project</code>, <code>validate_scenes</code>, <code>validate_project_config</code>,
+     <code>validate_registries</code>, <code>project_report</code>.</p>
+
+  <p><a href="https://github.com/TMHSDigital/godot-correctness-mcp">README and source on GitHub</a> ·
+     <a href="https://github.com/TMHSDigital/godot-correctness-mcp/blob/main/CHANGELOG.md">Changelog</a></p>
 </body>
 </html>

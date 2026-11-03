@@ -14,7 +14,7 @@ For every `.tscn` under the project root:
 | Rule ID | Severity | Flags |
 |---------|----------|-------|
 | `scene-ext-resource-missing` | error | An `ext_resource` `path` that does not resolve to an existing file. |
-| `scene-missing-ext-resource-id` | error | An `ExtResource("id")` reference whose id is not declared in the scene. |
+| `scene-missing-ext-resource-id` | error | An `ExtResource("id")` reference whose id is not declared in the scene (in properties, nested arrays/dicts, or node `instance=` attributes). |
 | `scene-duplicate-resource-id` | error | Two `ext_resource` declarations sharing an id. |
 
 `res://` maps to the project root; `uid://`-only references are skipped (not
@@ -25,6 +25,7 @@ Reads `project.godot`:
 
 | Rule ID | Severity | Flags |
 |---------|----------|-------|
+| `project-missing` | error | No `project.godot` at the given root. |
 | `project-main-scene-missing` | error | `run/main_scene` points at a missing scene. |
 | `project-autoload-missing` | error | An `[autoload]` entry points at a missing file (leading `*` handled). |
 | `project-input-malformed` | warning | An `[input]` action that is not a well-formed dictionary. |

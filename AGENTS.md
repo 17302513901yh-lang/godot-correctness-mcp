@@ -6,20 +6,29 @@ This file tells AI coding agents how the godot-correctness-mcp repo works and ho
 
 ## Repository overview
 
-This is an MCP server. It contains:
+This is an MCP server (plus the `gdcorrect` CLI) for offline static correctness checks on Godot 4.x GDScript projects. It contains:
 
-- **`src/`** -- TypeScript source code
-- **`src/providers/`** -- provider adapters implementing the `Provider` interface, wired into `ProviderManager`
-- **`src/tools/`** -- the registered MCP tools (stdio transport only)
+- **`src/index.ts`** -- MCP server entry (stdio transport only) and `server_info`
+- **`src/cli.ts`** -- the `gdcorrect` CLI (same analyzers, CI-friendly exit codes)
+- **`src/tools/`** -- MCP tool registration (`api.ts`, `lint.ts`, `scenes.ts`) and the shared result helpers (`result.ts`)
+- **`src/lint/`** -- GDScript lint engine, config loading, project linting, and the rules in `src/lint/rules/`
+- **`src/gdscript/`** -- tree-sitter GDScript parser and AST helpers
+- **`src/scenes/`** -- static .tscn / project.godot / .tres registry validation and `project_report`
+- **`src/godot/`** -- tolerant parser for Godot text formats
+- **`src/symbols/`** -- Godot API symbol DB loading, lookup, and cross-version diff
+- **`src/project/`** -- shared project file walker
+- **`src/resources/`** -- `skill://` MCP resources (content in `skills/`)
+- **`data/`** -- committed artifacts: per-version symbol DBs and the GDScript grammar WASM
+- **`scripts/`** -- symbol DB generation/validation and `mcp-tools.json` generation
 - **`package.json`** -- npm package manifest (version source of truth)
-- **`mcp-tools.json`** -- enumerates the MCP tools this server exposes
+- **`mcp-tools.json`** -- generated list of the MCP tools this server exposes
 - **`docs/`** -- documentation and GitHub Pages site
 - **`CHANGELOG.md`** -- release history
 
 ## Branching and commit model
 
-- **Single branch**: `main` only. No develop/release branches.
-- **Conventional commits** are required. Use them to decide your version bump, then apply it in your PR (`npm version <patch|minor|major> --no-git-tag-version`); `release.yml` tags and publishes that version on merge, and CI never writes to `main`:
+- **Single branch**: `main` only. No develop/release branches. Maintainers commit directly to `main`; outside contributors open a pull request from a fork (see CONTRIBUTING.md).
+- **Conventional commits** are required. Use them to decide the version bump (`npm version <patch|minor|major> --no-git-tag-version`); `release.yml` tags and publishes that version when it lands on `main`, and CI never writes to `main`:
   - `feat:` or `feat(scope):` -- bump the **minor** version
   - `feat!:` or a `BREAKING CHANGE` trailer -- bump the **major** version
   - everything else (`fix:`, `chore:`, `docs:`, etc.) -- bump the **patch** version
@@ -37,11 +46,11 @@ Builds, typechecks, and runs the test suite on Node 22 and 24, on Ubuntu and Win
 
 ### `release.yml` (runs on push to main)
 
-Reads the version from `package.json` and, if there is no matching tag yet, pushes the `v<version>` tag (plus the floating `vMAJOR` and `vMAJOR.MINOR` tags), creates a GitHub Release, and dispatches `publish.yml`. It only pushes tags and never writes to `main`; bump the version in your PR.
+Reads the version from `package.json` and, if there is no matching tag yet, pushes the `v<version>` tag (plus the floating `vMAJOR` and `vMAJOR.MINOR` tags), creates a GitHub Release, and dispatches `publish.yml`. It only pushes tags and never writes to `main`.
 
-### `publish.yml` (runs on release published or workflow_dispatch)
+### `publish.yml` (runs on workflow_dispatch)
 
-Publishes the package to npm.
+Publishes the package to npm via trusted publishing (OIDC, no token). A release created by `release.yml` uses `GITHUB_TOKEN`, which cannot trigger other workflows, so `release.yml` dispatches `publish.yml` explicitly.
 
 ### `drift-check.yml`
 
@@ -62,29 +71,36 @@ Keeps repository labels in sync.
 ## Version management
 
 - The **source of truth** for the current version is `package.json`.
-- Bump it in your PR with `npm version <patch|minor|major> --no-git-tag-version` (keeps the lockfile in sync) and update the README badge, following conventional-commit intent.
-- On merge, `release.yml` tags that version and publishes it. `main` is protected and is never written to by CI.
+- Bump it with `npm version <patch|minor|major> --no-git-tag-version` (keeps the lockfile in sync) and update the README badge, following conventional-commit intent.
+- When the bump reaches `main`, `release.yml` tags that version and publishes it. CI never writes to `main`.
 
 ## Code conventions
 
 - No hardcoded credentials -- CI scans for password/token/api_key patterns.
-- Conventional commits; bump the version deliberately in your PR (CI tags and publishes it).
-- Keep `mcp-tools.json` in sync with the tools registered in `src/tools/`.
+- Conventional commits; bump the version deliberately (CI tags and publishes it).
+- `mcp-tools.json` is generated: run `npm run generate:tools` after changing a tool. `test/tools.test.ts` fails when it drifts from the registered tools.
 
 ## Adding content
 
-### New provider adapter
+### New lint rule
 
-1. Implement the `Provider` interface in `src/providers/`
-2. Register the adapter in `ProviderManager`
-3. Use `feat:` commit prefix
+1. Add `src/lint/rules/<rule-id>.ts` exporting a `Rule` (`id`, `description`, `defaultSeverity`, `check`)
+2. Add it to `DEFAULT_RULES` in `src/lint/rules/index.ts`
+3. Add a fixture in `test/fixtures/gd/` and assertions in `test/lint.test.ts` (positive and near-miss negative cases)
+4. Document it in `docs/lint.md`; use the `feat:` commit prefix
+
+### New scene / project / registry check
+
+1. Add the check to the relevant function in `src/scenes/validate.ts`
+2. Extend `test/fixtures/scene-project/` and `test/scenes.test.ts`
+3. Document the rule id in `docs/scenes.md`; use the `feat:` commit prefix
 
 ### New tool
 
-1. Register the tool in `src/tools/`
-2. Add it to `mcp-tools.json`
-3. Add vitest tests
-4. Use `feat:` commit prefix
+1. Register the tool with `server.registerTool` in `src/tools/`, returning results through `ok` / `fail` / `guard` from `src/tools/result.ts`
+2. Run `npm run generate:tools` to refresh `mcp-tools.json`
+3. Add vitest tests (see `test/tools.test.ts`)
+4. Use the `feat:` commit prefix
 
 ## License
 

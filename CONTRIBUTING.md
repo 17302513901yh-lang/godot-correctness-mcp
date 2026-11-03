@@ -5,9 +5,20 @@ Thank you for your interest in contributing.
 ## Getting Started
 
 1. Fork the repository
-2. Create a feature branch from `main`
+2. Create a branch in your fork
 3. Make your changes following the conventions below
-4. Submit a pull request
+4. Open a pull request against `main`
+
+Maintainers commit directly to `main`; outside contributions always come in as pull requests.
+
+### Local setup
+
+```bash
+npm ci
+npm run build
+npm run typecheck
+npm test
+```
 
 ## Conventions
 
@@ -15,28 +26,33 @@ Thank you for your interest in contributing.
 
 Use [Conventional Commits](https://www.conventionalcommits.org/):
 
-- `feat:` -- new feature, provider adapter, or tool
+- `feat:` -- new feature, lint rule, check, or tool
 - `fix:` -- bug fix
 - `docs:` -- documentation changes
 - `chore:` -- maintenance, dependency updates
 - `refactor:` -- code restructuring
 
-### Provider adapters
+### Lint rules
 
-- Implement the `Provider` interface in `src/providers/`
-- Register the adapter in `ProviderManager`
+- Add `src/lint/rules/<rule-id>.ts` and register it in `src/lint/rules/index.ts`
+- Add a fixture under `test/fixtures/gd/` with positive and near-miss negative cases
+- Document it in `docs/lint.md`
+
+### Scene, project, and registry checks
+
+- Add the check in `src/scenes/validate.ts`, a fixture under `test/fixtures/scene-project/`, and the rule id in `docs/scenes.md`
 
 ### Tools
 
-- Register the tool in `src/tools/`
-- Add it to `mcp-tools.json`
+- Register the tool with `server.registerTool` in `src/tools/`
+- Run `npm run generate:tools` to refresh `mcp-tools.json` (a test fails if it is stale)
 - Add vitest tests
 
-Bump the version in `package.json` in your PR (e.g. `npm version <patch|minor|major> --no-git-tag-version`); CI tags and publishes it on merge.
+Maintainers bump the version in `package.json` (`npm version <patch|minor|major> --no-git-tag-version`); CI tags and publishes it when it lands on `main`.
 
 ## Pull Request Process
 
-1. Ensure CI passes (`npm run build`, `npm test`, `npm run typecheck`)
+1. Ensure CI passes (it runs `npm run build`, `npm run typecheck`, `npm run validate:artifacts`, and `npm test` on Ubuntu and Windows)
 2. Update `CHANGELOG.md` if the change is user-facing
 3. Use a descriptive PR title following conventional commit format
 
@@ -53,7 +69,8 @@ By submitting a contribution to this repository, you certify that you have the r
 Every commit in a pull request must carry a `Signed-off-by:` trailer matching the commit author. Sign at commit time with the `-s` flag:
 
 ```bash
-git commit -s -m "feat: add new tool"```
+git commit -s -m "feat: add new tool"
+```
 
 This appends a line like `Signed-off-by: Jane Developer <jane@example.com>` to the commit message. The GitHub DCO App enforces this on every PR.
 

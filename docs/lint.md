@@ -42,13 +42,24 @@ defaults apply when the file is absent. See
 }
 ```
 
-- `include` / `exclude`: glob sets (picomatch). Defaults: include `**/*.gd`,
-  exclude `**/.godot/**`.
+- `include` / `exclude`: glob sets (picomatch), relative to the project root.
+  Defaults: include `**/*.gd`, exclude `**/.godot/**`. `addons/` **is linted by
+  default**; add `"addons/**"` to `exclude` to skip third-party plugins.
+  Excluded directories are not descended into, and `.git/` and `.godot/` are
+  always skipped.
 - `rules.<id>.enabled`: set `false` to disable a rule.
 - `rules.<id>.severity`: override to `error` / `warning` / `info`. A config
   override wins over a rule's per-finding severity.
-- `rules.<id>.options`: per-rule options (reserved).
-- `registryDirs`, `pathPropertyPatterns`: used by the Phase 4 registry validator.
+- `rules.<id>.options`: per-rule options (reserved; no built-in rule reads any yet).
+- `registryDirs`, `pathPropertyPatterns`: used by the registry validator (see [scenes.md](scenes.md)).
+
+Unknown top-level keys (for example a typo like `exlude`) are rejected with an
+error naming the config file, rather than silently ignored. `$schema` and
+`$comment` are allowed.
+
+`lint_file` and `lint_project` use the same config: `lint_file` loads it from
+the nearest ancestor directory that contains `godot-correctness.config.json` or
+`project.godot`.
 
 ## CLI
 

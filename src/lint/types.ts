@@ -21,7 +21,8 @@ export interface RawFinding {
   /**
    * Intrinsic severity for this specific finding, used for rules that emit more
    * than one severity (e.g. delta-misuse: error for the main pattern, info for
-   * the softer sub-pattern). Takes precedence over config/default severity.
+   * the softer sub-pattern). Takes precedence over the rule default, but a
+   * config severity override still wins.
    */
   severity?: Severity;
 }

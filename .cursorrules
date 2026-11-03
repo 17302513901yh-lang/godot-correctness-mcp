@@ -1,15 +1,16 @@
 # godot-correctness-mcp
 
-This is a mcp-server repository for godot-correctness-mcp development.
+This is the godot-correctness-mcp repository: an offline static correctness MCP server (and `gdcorrect` CLI) for Godot 4.x GDScript projects.
 
 ## Project structure
 
-- `src/` -- TypeScript source
+- `src/` -- TypeScript source (`tools/` MCP registration, `lint/` GDScript rules, `scenes/` scene/project/registry checks, `symbols/` API DB lookup/diff)
+- `data/` -- committed symbol DBs and grammar WASM
 - `package.json` -- npm package manifest
 
 ## Conventions
 
 - Use conventional commits (feat:, fix:, chore:, docs:)
-- Bump the version in package.json in your PR; CI tags and publishes it
-- Keep mcp-tools.json in sync with the registered tools
-- Provider adapters live in src/providers/; tools live in src/tools/
+- Bump the version in package.json with `npm version <level> --no-git-tag-version`; CI tags and publishes it
+- Regenerate mcp-tools.json with `npm run generate:tools` after changing tools
+- Lint rules live in src/lint/rules/; tools live in src/tools/

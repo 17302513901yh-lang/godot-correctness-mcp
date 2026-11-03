@@ -16,11 +16,11 @@ export type GodotVersion = (typeof PINNED_GODOT_VERSIONS)[number];
  * those artifacts, which flips the flags without any code change here.
  */
 export interface PillarAvailability {
-  /** GDScript anti-pattern linting (tree-sitter grammar WASM). Phase 3. */
+  /** GDScript anti-pattern linting (tree-sitter grammar WASM). */
   gdscriptLint: boolean;
-  /** Cross-version API symbol lookup/diff (committed symbol databases). Phase 2. */
+  /** Cross-version API symbol lookup/diff (committed symbol databases). */
   apiSymbols: boolean;
-  /** Static .tscn/.tres/project.godot analysis incl. registry validation. Phase 4. */
+  /** Static .tscn/.tres/project.godot analysis incl. registry validation. */
   sceneResourceAnalysis: boolean;
 }
 
@@ -37,7 +37,7 @@ export function pillarAvailability(): PillarAvailability {
   return {
     gdscriptLint,
     apiSymbols,
-    // Phase 4 static scene/resource/registry analysis is pure TypeScript with
+    // Static scene/resource/registry analysis is pure TypeScript with
     // no external artifact; it is always available once shipped.
     sceneResourceAnalysis: true,
   };
