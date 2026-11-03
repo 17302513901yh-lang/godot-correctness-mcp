@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `gdcorrect --write-baseline` / `--baseline` so existing projects can gate CI on new findings only (#53)
 - `project-input-action-undefined`: flags input action names used in scripts that are not defined in `project.godot` (#50)
 - Scene checks `scene-missing-sub-resource-id`, `scene-node-parent-missing`, and `scene-connection-method-missing`; ExtResource refs inside `[sub_resource]` sections are now checked too (#52)
+- `uid://` references resolve through `.uid` sidecars, `.import` files, and scene headers: new `scene-ext-resource-path-stale`, `scene-ext-resource-uid-mismatch`, and `scene-ext-resource-uid-unknown` checks, and `uid://` main scenes and autoloads are validated (#35)
 
 ### Fixed
 

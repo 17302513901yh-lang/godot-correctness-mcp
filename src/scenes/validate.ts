@@ -13,6 +13,7 @@ import { walkProject } from "../project/walk.js";
 import { checkInputActionUsage } from "./input-actions.js";
 import { looksLikeResourcePath, resolveResPath } from "./paths.js";
 import { checkConnections, checkNodeParents, checkSubResourceRefs } from "./scene-graph.js";
+import { buildUidIndex, normalizeResPath, type UidIndex } from "./uids.js";
 
 function finding(
   file: string,
@@ -63,6 +64,77 @@ function extRefs(section: GodotSection): { key: string; ref: string; line: numbe
 }
 
 /**
+ * Build the uid index on first use. It deliberately ignores `exclude`, since
+ * references into excluded folders (e.g. addons/) are still valid targets.
+ */
+function lazyUidIndex(root: string): () => UidIndex {
+  let index: UidIndex | undefined;
+  return () => (index ??= buildUidIndex(root, () => false));
+}
+
+/**
+ * Check one ext_resource declaration. Godot 4.4+ loads by `uid` first and
+ * falls back to `path`, so a stale path with a valid uid still loads (warning),
+ * a uid that points somewhere other than `path` loads the uid's file (warning),
+ * and only references that resolve nowhere are errors.
+ */
+function checkExtResource(
+  root: string,
+  rel: string,
+  s: GodotSection,
+  uids: () => UidIndex,
+): Finding | null {
+  const path = s.attributes["path"]?.string;
+  const uidAttr = s.attributes["uid"]?.string;
+  const uid = uidAttr?.startsWith("uid://") ? uidAttr : undefined;
+  const abs = path ? resolveResPath(root, path) : null;
+  const pathOk = abs !== null && existsSync(abs);
+
+  if (!uid) {
+    if (abs && !pathOk) {
+      return finding(rel, s.line, "scene-ext-resource-missing", "error",
+        `ext_resource path does not exist: ${path}`, "Fix the path or restore the missing file.");
+    }
+    return null;
+  }
+
+  const target = uids().get(uid);
+  const targetAbs = target ? resolveResPath(root, target) : null;
+  const targetOk = targetAbs !== null && existsSync(targetAbs);
+
+  if (path && abs) {
+    if (!pathOk) {
+      if (targetOk) {
+        return finding(rel, s.line, "scene-ext-resource-path-stale", "warning",
+          `ext_resource path ${path} does not exist; Godot will load ${uid} from ${target} instead.`,
+          `Update the path to ${target} (re-saving the scene in the editor does this).`);
+      }
+      return finding(rel, s.line, "scene-ext-resource-missing", "error",
+        `ext_resource path does not exist: ${path}` + (target ? ` (and ${uid} points at missing ${target})` : ""),
+        "Fix the path or restore the missing file.");
+    }
+    if (target && targetOk && normalizeResPath(target) !== normalizeResPath(path)) {
+      return finding(rel, s.line, "scene-ext-resource-uid-mismatch", "warning",
+        `ext_resource uid ${uid} belongs to ${target}, but path is ${path}; Godot loads by uid, so ${target} is used.`,
+        "Fix whichever side is wrong; usually the file was moved or duplicated outside the editor.");
+    }
+    return null;
+  }
+
+  // uid-only reference.
+  if (!target) {
+    return finding(rel, s.line, "scene-ext-resource-uid-unknown", "warning",
+      `ext_resource ${uid} has no path and matches no .uid/.import/scene uid in the project.`,
+      "Restore the referenced file (and its .uid/.import sidecar) or re-save the scene in the editor.");
+  }
+  if (!targetOk) {
+    return finding(rel, s.line, "scene-ext-resource-missing", "error",
+      `ext_resource ${uid} points at ${target}, which does not exist.`, "Restore the missing file.");
+  }
+  return null;
+}
+
+/**
  * validate_scenes: ext_resource paths resolve, ExtResource/SubResource refs are
  * declared, no duplicate ids, node parents exist, and [connection] targets
  * have the named method.
@@ -71,6 +143,7 @@ export function validateScenes(root: string, config?: ResolvedConfig): Finding[]
   const cfg = config ?? loadConfig(root);
   const exclude = picomatch(cfg.exclude, { dot: true });
   const findings: Finding[] = [];
+  const uids = lazyUidIndex(root);
 
   for (const { full, rel } of walkProject(root, { exts: [".tscn"], exclude })) {
     const file = parseGodotFile(readFileSync(full, "utf-8"));
@@ -85,16 +158,8 @@ export function validateScenes(root: string, config?: ResolvedConfig): Finding[]
     }
 
     for (const s of sectionsOfKind(file, "ext_resource")) {
-      const path = s.attributes["path"]?.string;
-      if (!path) continue; // uid-only reference; not statically resolvable
-      const abs = resolveResPath(root, path);
-      if (abs && !existsSync(abs)) {
-        findings.push(
-          finding(rel, s.line, "scene-ext-resource-missing", "error",
-            `ext_resource path does not exist: ${path}`,
-            "Fix the path or restore the missing file."),
-        );
-      }
+      const f = checkExtResource(root, rel, s, uids);
+      if (f) findings.push(f);
     }
 
     for (const section of file.sections.filter((s) => s.kind !== "ext_resource")) {
@@ -131,11 +196,23 @@ export function validateProjectConfig(root: string, config?: ResolvedConfig): Fi
 
   const app = file.sections.find((s) => s.kind === "application");
   const mainScene = app?.properties["run/main_scene"];
+  const uids = lazyUidIndex(root);
+  /** Resolve res:// directly and uid:// via the index; null when unresolvable. */
+  const resolveRef = (p: string): { abs: string | null; unknownUid: boolean } => {
+    if (!p.startsWith("uid://")) return { abs: resolveResPath(root, p), unknownUid: false };
+    const target = uids().get(p);
+    return target ? { abs: resolveResPath(root, target), unknownUid: false } : { abs: null, unknownUid: true };
+  };
+
   if (mainScene?.kind === "string" && mainScene.string) {
-    const abs = resolveResPath(root, mainScene.string);
+    const { abs, unknownUid } = resolveRef(mainScene.string);
     if (abs && !existsSync(abs)) {
       findings.push(finding(rel, mainScene.line, "project-main-scene-missing", "error",
         `Main scene does not exist: ${mainScene.string}`, "Fix run/main_scene or restore the scene."));
+    } else if (unknownUid) {
+      findings.push(finding(rel, mainScene.line, "project-main-scene-missing", "warning",
+        `Main scene ${mainScene.string} matches no scene uid in the project.`,
+        "Point run/main_scene at an existing scene (res:// path or its uid)."));
     }
   }
 
@@ -144,7 +221,7 @@ export function validateProjectConfig(root: string, config?: ResolvedConfig): Fi
     for (const [name, v] of Object.entries(autoload.properties)) {
       if (v.kind !== "string" || !v.string) continue;
       const p = v.string.replace(/^\*/, ""); // leading * marks an enabled singleton
-      const abs = resolveResPath(root, p);
+      const { abs } = resolveRef(p);
       if (abs && !existsSync(abs)) {
         findings.push(finding(rel, v.line, "project-autoload-missing", "error",
           `Autoload "${name}" points at a missing file: ${p}`,

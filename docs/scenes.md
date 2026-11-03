@@ -16,12 +16,18 @@ For every `.tscn` under the project root:
 | `scene-ext-resource-missing` | error | An `ext_resource` `path` that does not resolve to an existing file. |
 | `scene-missing-ext-resource-id` | error | An `ExtResource("id")` reference whose id is not declared in the scene (in properties, nested arrays/dicts, or node `instance=` attributes). |
 | `scene-duplicate-resource-id` | error | Two `ext_resource` declarations sharing an id. |
+| `scene-ext-resource-path-stale` | warning | The `path` is missing but the `uid` resolves, so Godot still loads the file by uid. |
+| `scene-ext-resource-uid-mismatch` | warning | `uid` and `path` name different existing files; Godot loads the uid's file. |
+| `scene-ext-resource-uid-unknown` | warning | A uid-only `ext_resource` whose uid matches nothing in the project. |
 | `scene-missing-sub-resource-id` | error | A `SubResource("id")` reference whose id has no `[sub_resource]` declaration in the file. |
 | `scene-node-parent-missing` | error | A `[node parent="..."]` path that names no node declared in the scene (paths under instanced sub-scenes are skipped). |
 | `scene-connection-method-missing` | error | A `[connection]` whose target node's script has no such method. Checked only when the script directly `extends` a built-in class, so its own `func`s plus the engine class chain (from the symbol DB) are the complete method set. |
 
-`res://` maps to the project root; `uid://`-only references are skipped (not
-statically resolvable).
+`res://` maps to the project root. `uid://` references resolve through a static
+index built from what Godot 4.4+ commits next to the files: `<file>.uid`
+sidecars, `uid=` in `<asset>.import`, and `uid=` in `.tscn`/`.tres` headers. Godot
+loads by uid first and falls back to the path, which is why a stale path with a
+valid uid is only a warning. `run/main_scene` and autoloads may also be `uid://`.
 
 ### validate_project_config (`gdcorrect validate-project`)
 Reads `project.godot`:
