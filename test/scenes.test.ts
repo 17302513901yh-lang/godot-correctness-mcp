@@ -39,6 +39,35 @@ describe("parseGodotFile", () => {
     const input = f.sections.find((s) => s.kind === "input");
     expect(input?.properties["jump"]?.raw.trimStart().startsWith("{")).toBe(true);
   });
+
+  it("reports the start line of a multi-line value", () => {
+    const f = parseGodotFile('[resource]\nitems = {\n"a": 1,\n"b": 2\n}\nafter = 3\n');
+    expect(f.sections[0].properties["items"]?.line).toBe(2);
+    expect(f.sections[0].properties["after"]?.line).toBe(6);
+  });
+});
+
+describe("validateScenes duplicate ids", () => {
+  it("names unquoted duplicate ids in the message", async () => {
+    const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const dir = mkdtempSync(join(tmpdir(), "gdc-dup-"));
+    try {
+      writeFileSync(
+        join(dir, "Dup.tscn"),
+        '[gd_scene format=3]\n\n[ext_resource type="Script" path="res://a.gd" id=1]\n' +
+          '[ext_resource type="Script" path="res://b.gd" id=1]\n\n[node name="R" type="Node"]\n',
+      );
+      writeFileSync(join(dir, "a.gd"), "");
+      writeFileSync(join(dir, "b.gd"), "");
+      const dup = validateScenes(dir).find((f) => f.ruleId === "scene-duplicate-resource-id");
+      expect(dup?.message).toBe('Duplicate ext_resource id "1".');
+      expect(dup?.line).toBe(4);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("validateScenes", () => {
@@ -52,7 +81,19 @@ describe("validateScenes", () => {
 
   it("fires only in Broken.tscn, never in the valid Main.tscn", () => {
     expect(findings.every((f) => f.file === "Broken.tscn")).toBe(true);
-    expect(findings).toHaveLength(2);
+    expect(findings).toHaveLength(4);
+  });
+
+  it("flags undeclared ExtResource refs in node instance= attributes", () => {
+    const f = findings.find((x) => x.message.includes("7_inst"));
+    expect(f?.ruleId).toBe("scene-missing-ext-resource-id");
+    expect(f?.line).toBe(11);
+  });
+
+  it("flags undeclared ExtResource refs nested in multi-line values at their own line", () => {
+    const f = findings.find((x) => x.message.includes("8_nested"));
+    expect(f?.ruleId).toBe("scene-missing-ext-resource-id");
+    expect(f?.line).toBe(15);
   });
 });
 
@@ -97,10 +138,10 @@ describe("project_report", () => {
   it("aggregates all static checks with correct counts", async () => {
     const r = await projectReport(ROOT);
     expect(r.registryEntries).toHaveLength(3);
-    // scenes: 2 errors; project: 1 error + 1 warning; registries: 2 errors; lint: 0.
-    expect(r.errorCount).toBe(5);
+    // scenes: 4 errors; project: 1 error + 1 warning; registries: 2 errors; lint: 0.
+    expect(r.errorCount).toBe(7);
     expect(r.warningCount).toBe(1);
-    expect(r.totalFindings).toBe(6);
+    expect(r.totalFindings).toBe(8);
   });
 });
 

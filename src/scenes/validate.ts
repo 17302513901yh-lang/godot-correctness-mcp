@@ -62,11 +62,23 @@ function extResourceIndex(file: GodotFile): {
   return { byId, duplicates };
 }
 
-/** Collect all ExtResource("id") references across a section's properties. */
+const EXT_REF_RE = /ExtResource\(\s*"?([^")]*)"?\s*\)/g;
+
+/**
+ * Collect all ExtResource("id") references in a section: header attributes
+ * (e.g. `instance=ExtResource(...)` on nodes) and property values, including
+ * references nested inside arrays, dictionaries, and constructors.
+ */
 function extRefs(section: GodotSection): { key: string; ref: string; line: number }[] {
   const refs: { key: string; ref: string; line: number }[] = [];
-  for (const [key, v] of Object.entries(section.properties)) {
-    if (v.kind === "extResource" && v.ref) refs.push({ key, ref: v.ref, line: v.line });
+  const values = [...Object.entries(section.attributes), ...Object.entries(section.properties)];
+  for (const [key, v] of values) {
+    if (!v.raw.includes("ExtResource")) continue;
+    for (const m of v.raw.matchAll(EXT_REF_RE)) {
+      if (!m[1]) continue;
+      const offset = v.raw.slice(0, m.index).split("\n").length - 1;
+      refs.push({ key, ref: m[1], line: v.line + offset });
+    }
   }
   return refs;
 }
@@ -82,10 +94,10 @@ export function validateScenes(root: string, config?: ResolvedConfig): Finding[]
     const file = parseGodotFile(readFileSync(full, "utf-8"));
     const { byId, duplicates } = extResourceIndex(file);
 
-    for (const { section } of duplicates) {
+    for (const { id, section } of duplicates) {
       findings.push(
         finding(rel, section.line, "scene-duplicate-resource-id", "error",
-          `Duplicate ext_resource id "${section.attributes["id"]?.string ?? ""}".`,
+          `Duplicate ext_resource id "${id}".`,
           "Give each ext_resource a unique id."),
       );
     }

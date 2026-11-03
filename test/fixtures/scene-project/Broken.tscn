@@ -7,3 +7,10 @@ script = ExtResource("1_x")
 
 [node name="Child" type="Node2D" parent="."]
 script = ExtResource("99_missing")
+
+[node name="Inst" parent="." instance=ExtResource("7_inst")]
+
+[node name="Holder" type="Node" parent="."]
+items = [
+ExtResource("8_nested")
+]

@@ -117,12 +117,13 @@ export function parseGodotFile(source: string): GodotFile {
     if (propMatch && current) {
       const key = propMatch[1];
       let value = propMatch[2];
+      const startLine = i + 1;
       // Continue multi-line values (arrays/dicts/constructors) until balanced.
       while (!isBalanced(value) && i + 1 < lines.length) {
         i++;
         value += `\n${lines[i]}`;
       }
-      current.properties[key] = classifyValue(value, i + 1);
+      current.properties[key] = classifyValue(value, startLine);
     }
     // Anything else is opaque and intentionally ignored.
   }
