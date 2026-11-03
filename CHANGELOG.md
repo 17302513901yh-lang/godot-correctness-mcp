@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 
 - `gdcorrect` exits 2 for a nonexistent project directory instead of reporting a clean run
+- Added `THIRD_PARTY_NOTICES.md` (shipped in the npm package) with the MIT notices for the bundled tree-sitter-gdscript grammar and Godot API data (#26)
 
 ## [0.1.2] - 2026-11-03
 
@@ -46,6 +47,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [0.1.1] - 2026-11-03
 
 ### Changed
+
+- Added `THIRD_PARTY_NOTICES.md` (shipped in the npm package) with the MIT notices for the bundled tree-sitter-gdscript grammar and Godot API data (#26)
 
 - Publish via npm trusted publishing (OIDC) from `publish.yml`; first publish validates the trusted publisher connection
 

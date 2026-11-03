@@ -1,7 +1,7 @@
 # GDScript linting
 
 The lint pillar parses GDScript with a committed tree-sitter grammar WASM
-(`data/tree-sitter-gdscript.wasm`, loaded via `web-tree-sitter`) and runs a
+(`data/tree-sitter-gdscript.wasm`, MIT, see [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md); loaded via `web-tree-sitter`) and runs a
 conservative ruleset. No Godot binary, editor, or network is required. It is
 exposed both as MCP tools (`lint_file`, `lint_project`) and as a CI-first CLI
 (`gdcorrect`).

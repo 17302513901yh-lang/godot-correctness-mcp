@@ -143,7 +143,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-CC-BY-NC-ND-4.0 -- see [LICENSE](LICENSE) for details.
+CC-BY-NC-ND-4.0 -- see [LICENSE](LICENSE) for details. The bundled tree-sitter-gdscript
+grammar and Godot API data are MIT-licensed upstream material; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ---
 
