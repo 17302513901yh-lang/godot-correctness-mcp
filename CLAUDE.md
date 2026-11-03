@@ -25,7 +25,7 @@ godot-correctness-mcp -- Offline static correctness MCP server for Godot 4.x GDS
 ## Conventions
 
 - Use conventional commits (`feat:`, `fix:`, `chore:`, `docs:`)
-- Bump the version in `package.json` in your PR (`npm version`, keeps the lockfile in sync); `release.yml` tags and publishes that version on merge
+- Work directly on `main` (no PRs or feature branches). Bump the version in `package.json` with `npm version <patch|minor|major> --no-git-tag-version` (keeps the lockfile in sync); `release.yml` tags the new version on push to main and `publish.yml` publishes it to npm via trusted publishing (OIDC, no token)
 - Provider adapters live in `src/providers/` and implement the `Provider` interface, wired into `ProviderManager`; tools live in `src/tools/`
 - Keep `mcp-tools.json` in sync with the registered tools
 
