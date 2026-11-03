@@ -2,6 +2,7 @@
 import { isMainModule } from "./entry.js";
 import { lintProject } from "./lint/project.js";
 import type { Finding } from "./lint/types.js";
+import { requireDir } from "./project/walk.js";
 import { projectReport } from "./scenes/report.js";
 import { validateProjectConfig, validateRegistries, validateScenes } from "./scenes/validate.js";
 
@@ -23,6 +24,7 @@ const COMMANDS = new Set([
 ]);
 
 async function runCommand(command: string, root: string): Promise<CommandResult> {
+  requireDir(root);
   switch (command) {
     case "lint": {
       const r = await lintProject(root);

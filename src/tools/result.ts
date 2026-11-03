@@ -1,5 +1,3 @@
-import { existsSync, statSync } from "node:fs";
-
 /** The text-content result every tool in this server returns. */
 export type ToolResult = {
   content: { type: "text"; text: string }[];
@@ -35,11 +33,4 @@ export async function guard(fn: () => unknown): Promise<ToolResult> {
 
 function isToolResult(v: unknown): v is ToolResult {
   return typeof v === "object" && v !== null && Array.isArray((v as ToolResult).content);
-}
-
-/** Throw a clear error unless `path` is an existing directory. */
-export function requireDir(path: string): void {
-  if (!existsSync(path) || !statSync(path).isDirectory()) {
-    throw new Error(`Project root does not exist or is not a directory: ${path}`);
-  }
 }

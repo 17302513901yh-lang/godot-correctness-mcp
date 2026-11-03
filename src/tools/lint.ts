@@ -5,7 +5,8 @@ import { z } from "zod";
 import { findProjectRoot, loadConfig } from "../lint/config.js";
 import { lintSource } from "../lint/engine.js";
 import { lintProject } from "../lint/project.js";
-import { guard, requireDir } from "./result.js";
+import { requireDir } from "../project/walk.js";
+import { guard } from "./result.js";
 
 const READ_ONLY = { readOnlyHint: true, openWorldHint: false } as const;
 

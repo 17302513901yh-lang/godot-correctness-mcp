@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
 /** Convert an OS path to forward slashes (globs and reported paths are POSIX). */
@@ -53,4 +53,11 @@ export function walkProject(root: string, opts: WalkOptions = {}, dir: string = 
   };
   visit(dir);
   return out;
+}
+
+/** Throw a clear error unless `path` is an existing directory. */
+export function requireDir(path: string): void {
+  if (!existsSync(path) || !statSync(path).isDirectory()) {
+    throw new Error(`Project root does not exist or is not a directory: ${path}`);
+  }
 }

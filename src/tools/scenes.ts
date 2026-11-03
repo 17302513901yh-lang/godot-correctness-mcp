@@ -6,7 +6,8 @@ import {
   validateRegistries,
   validateScenes,
 } from "../scenes/validate.js";
-import { guard, requireDir } from "./result.js";
+import { requireDir } from "../project/walk.js";
+import { guard } from "./result.js";
 
 const ROOT_ARG = { path: z.string().min(1).describe("Path to the Godot project root") };
 const READ_ONLY = { readOnlyHint: true, openWorldHint: false } as const;
