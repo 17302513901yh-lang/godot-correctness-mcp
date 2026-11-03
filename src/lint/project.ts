@@ -1,29 +1,9 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { readFileSync } from "node:fs";
 import picomatch from "picomatch";
+import { walkProject } from "../project/walk.js";
 import { loadConfig, type ResolvedConfig } from "./config.js";
 import { lintSource } from "./engine.js";
 import type { Finding } from "./types.js";
-
-function toPosix(p: string): string {
-  return p.split(sep).join("/");
-}
-
-function collectFiles(root: string): string[] {
-  const out: string[] = [];
-  const walkDir = (dir: string): void => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (entry.isDirectory()) {
-        if (entry.name === ".git") continue;
-        walkDir(join(dir, entry.name));
-      } else if (entry.isFile()) {
-        out.push(join(dir, entry.name));
-      }
-    }
-  };
-  walkDir(root);
-  return out;
-}
 
 export interface ProjectLintResult {
   root: string;
@@ -43,9 +23,9 @@ export async function lintProject(
   const isIncluded = picomatch(cfg.include, { dot: true });
   const isExcluded = picomatch(cfg.exclude, { dot: true });
 
-  const files = collectFiles(root)
-    .map((full) => ({ full, rel: toPosix(relative(root, full)) }))
-    .filter(({ rel }) => isIncluded(rel) && !isExcluded(rel));
+  const files = walkProject(root, { exts: [".gd"], exclude: isExcluded }).filter(({ rel }) =>
+    isIncluded(rel),
+  );
 
   const findings: Finding[] = [];
   for (const { full, rel } of files) {

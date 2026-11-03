@@ -1,5 +1,5 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import picomatch from "picomatch";
 import {
   parseGodotFile,
@@ -9,31 +9,8 @@ import {
 } from "../godot/text-format.js";
 import { loadConfig, type ResolvedConfig } from "../lint/config.js";
 import type { Finding, Severity } from "../lint/types.js";
+import { walkProject } from "../project/walk.js";
 import { looksLikeResourcePath, resolveResPath } from "./paths.js";
-
-function toPosix(p: string): string {
-  return p.split(sep).join("/");
-}
-
-/** Recursively collect files with any of the given extensions under `dir`. */
-function collectByExt(dir: string, exts: string[], exclude: (rel: string) => boolean, root: string): string[] {
-  const out: string[] = [];
-  if (!existsSync(dir)) return out;
-  const walk = (d: string): void => {
-    for (const entry of readdirSync(d, { withFileTypes: true })) {
-      const full = join(d, entry.name);
-      const rel = toPosix(relative(root, full));
-      if (entry.isDirectory()) {
-        if (entry.name === ".git" || exclude(rel)) continue;
-        walk(full);
-      } else if (entry.isFile() && exts.some((e) => entry.name.endsWith(e)) && !exclude(rel)) {
-        out.push(full);
-      }
-    }
-  };
-  walk(dir);
-  return out;
-}
 
 function finding(
   file: string,
@@ -86,11 +63,10 @@ function extRefs(section: GodotSection): { key: string; ref: string; line: numbe
 /** validate_scenes: ext_resource paths resolve, ext refs declared, no dup ids. */
 export function validateScenes(root: string, config?: ResolvedConfig): Finding[] {
   const cfg = config ?? loadConfig(root);
-  const exclude = picomatch([...cfg.exclude, "**/.godot/**"], { dot: true });
+  const exclude = picomatch(cfg.exclude, { dot: true });
   const findings: Finding[] = [];
 
-  for (const full of collectByExt(root, [".tscn"], exclude, root)) {
-    const rel = toPosix(relative(root, full));
+  for (const { full, rel } of walkProject(root, { exts: [".tscn"], exclude })) {
     const file = parseGodotFile(readFileSync(full, "utf-8"));
     const { byId, duplicates } = extResourceIndex(file);
 
@@ -200,14 +176,13 @@ export interface RegistryResult {
 /** validate_registries: parse, script resolution + class_name, dangling paths. */
 export function validateRegistries(root: string, config?: ResolvedConfig): RegistryResult {
   const cfg = config ?? loadConfig(root);
-  const exclude = picomatch([...cfg.exclude, "**/.godot/**"], { dot: true });
+  const exclude = picomatch(cfg.exclude, { dot: true });
   const findings: Finding[] = [];
   const entries: RegistryEntry[] = [];
 
   for (const dirRel of cfg.registryDirs) {
     const dirAbs = join(root, dirRel);
-    for (const full of collectByExt(dirAbs, [".tres"], exclude, root)) {
-      const rel = toPosix(relative(root, full));
+    for (const { full, rel } of walkProject(root, { exts: [".tres"], exclude }, dirAbs)) {
       const file = parseGodotFile(readFileSync(full, "utf-8"));
 
       if (!file.header || file.header.kind !== "gd_resource") {
