@@ -17,7 +17,8 @@ never touches the network at runtime.
 1. **GDScript linting** — anti-pattern detection via a committed tree-sitter
    grammar (WASM). Rules like `delta-misuse`, `get-node-in-process`,
    `missing-onready`, `untyped-declaration`, `await-misuse`, `stringly-nodepath`,
-   `connect-without-disconnect`, `float-grid-equality`. See [docs/lint.md](docs/lint.md).
+   `connect-without-disconnect`, `float-grid-equality`, plus the opt-in
+   `removed-api-usage` upgrade check. See [docs/lint.md](docs/lint.md).
 2. **Cross-version API lookup & diff** — query classes/methods/properties/signals
    and diff the API between Godot **4.4** and **4.5**, from committed offline
    symbol databases. See [docs/symbol-db.md](docs/symbol-db.md).

@@ -19,6 +19,7 @@ exposed both as MCP tools (`lint_file`, `lint_project`) and as a CI-first CLI
 | `stringly-nodepath` | info | String-literal node path passed to `get_node()`/`NodePath()`/etc. (rename-fragile). |
 | `connect-without-disconnect` | info | `connect()` in `_ready()` with no `disconnect()` anywhere and no `CONNECT_ONE_SHOT`. |
 | `float-grid-equality` | info | `==`/`!=` where an operand is a float literal or `Vector2/3/4(...)` (precision). |
+| `removed-api-usage` | warning | **Opt-in** (set `targetVersion`). Engine API that was removed in the target Godot version, calls whose argument count becomes invalid, and overrides of engine virtuals that were removed or changed arity. See below. |
 
 Detection is deliberately conservative: for a CI gate, false positives are worse
 than misses. Only `error`-severity findings fail the CLI (exit 1).
@@ -50,7 +51,7 @@ defaults apply when the file is absent. See
 - `rules.<id>.enabled`: set `false` to disable a rule.
 - `rules.<id>.severity`: override to `error` / `warning` / `info`. A config
   override wins over a rule's per-finding severity.
-- `rules.<id>.options`: per-rule options (reserved; no built-in rule reads any yet).
+- `rules.<id>.options`: per-rule options (currently read by `removed-api-usage`).
 - `registryDirs`, `pathPropertyPatterns`: used by the registry validator (see [scenes.md](scenes.md)).
 
 Unknown top-level keys (for example a typo like `exlude`) are rejected with an
@@ -60,6 +61,30 @@ error naming the config file, rather than silently ignored. `$schema` and
 `lint_file` and `lint_project` use the same config: `lint_file` loads it from
 the nearest ancestor directory that contains `godot-correctness.config.json` or
 `project.godot`.
+
+## Upgrading Godot: `removed-api-usage`
+
+Enable it by naming the version you are moving to (the source version defaults
+to the pinned version before it):
+
+```json
+{ "rules": { "removed-api-usage": { "options": { "targetVersion": "4.5" } } } }
+```
+
+Options: `targetVersion` (required to enable) and `fromVersion` (optional).
+Using the committed symbol databases, it flags:
+
+- members removed between the versions (methods, properties, signals,
+  constants), accessed through receivers whose type is statically certain:
+  bare or `self.` calls in a script that `extends` a built-in class,
+  `ClassName.member`, and variables/parameters with an explicit built-in type;
+- calls whose argument count was valid before and is invalid after (new
+  optional parameters never trigger it);
+- script methods overriding engine virtuals that were removed in the target or
+  whose parameter count changed, which the engine would stop calling.
+
+Members that moved to a parent class are not reported. Untyped receivers are
+never guessed at; use `api_diff` for anything else.
 
 ## Inline suppressions
 
