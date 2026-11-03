@@ -29,8 +29,10 @@ This is an MCP server. It contains:
 
 ### `ci.yml` (runs on PR and push to main)
 
-Builds and runs the test suite on Node 20 and 22:
+Builds, typechecks, and runs the test suite on Node 22 and 24, on Ubuntu and Windows:
 - TypeScript build (`npm run build`)
+- Typecheck of `src/`, `scripts/`, and `test/` (`npm run typecheck`)
+- Committed symbol DB validation (`npm run validate:artifacts`)
 - Test suite (`npm test`, vitest, offline)
 
 ### `release.yml` (runs on push to main)

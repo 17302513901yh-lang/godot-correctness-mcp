@@ -18,7 +18,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.check.json",
     "validate:artifacts": "tsx scripts/validate-symbol-db.ts",
     "generate:tools": "tsx scripts/generate-mcp-tools.ts",
     "dev": "tsx watch src/index.ts",
@@ -53,6 +53,6 @@
     "developer-tools"
   ],
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   }
 }
