@@ -1,26 +1,29 @@
 #!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { PINNED_GODOT_VERSIONS } from "./capabilities.js";
 import { isMainModule } from "./entry.js";
 import { registerSkillResources } from "./resources/skills.js";
 import { getServerInfo, readVersion, SERVER_NAME } from "./server-info.js";
 import { registerApiTools } from "./tools/api.js";
 import { registerLintTools } from "./tools/lint.js";
+import { ok } from "./tools/result.js";
 import { registerSceneTools } from "./tools/scenes.js";
 
 /** Build the MCP server with all tools registered. Exported for offline tests. */
 export function createServer(): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: readVersion() });
 
-  server.tool(
+  server.registerTool(
     "server_info",
-    "Report this server's version, the pinned Godot versions it targets (4.4, 4.5), " +
-      "and which correctness pillars (GDScript lint, API symbols, scene/resource analysis) " +
-      "are currently available. Takes no arguments.",
-    {},
-    async () => ({
-      content: [{ type: "text", text: JSON.stringify(getServerInfo(), null, 2) }],
-    }),
+    {
+      description:
+        `Report this server's version, the pinned Godot versions it targets ` +
+        `(${PINNED_GODOT_VERSIONS.join(", ")}), and which correctness pillars (GDScript lint, ` +
+        "API symbols, scene/resource analysis) are currently available. Takes no arguments.",
+      annotations: { readOnlyHint: true, openWorldHint: false },
+    },
+    async () => ok(getServerInfo()),
   );
 
   registerApiTools(server);

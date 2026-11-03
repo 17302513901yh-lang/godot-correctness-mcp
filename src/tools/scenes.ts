@@ -6,67 +6,77 @@ import {
   validateRegistries,
   validateScenes,
 } from "../scenes/validate.js";
+import { guard, requireDir } from "./result.js";
 
-type ToolResult = { content: { type: "text"; text: string }[] };
-
-function ok(data: unknown): ToolResult {
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
-}
-function fail(message: string): ToolResult {
-  return { content: [{ type: "text", text: JSON.stringify({ error: message }, null, 2) }] };
-}
-function guard(fn: () => unknown): ToolResult {
-  try {
-    return ok(fn());
-  } catch (err) {
-    return fail(err instanceof Error ? err.message : String(err));
-  }
-}
+const ROOT_ARG = { path: z.string().min(1).describe("Path to the Godot project root") };
+const READ_ONLY = { readOnlyHint: true, openWorldHint: false } as const;
 
 /** Register the scene / resource / registry static-analysis tools. */
 export function registerSceneTools(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "validate_scenes",
-    "Validate every .tscn under a project root: ext_resource paths resolve, " +
-      "ExtResource references are declared, and there are no duplicate resource ids.",
-    { path: z.string().describe("Path to the Godot project root") },
-    async (args) => guard(() => {
-      const findings = validateScenes((args as { path: string }).path);
-      return { findings, count: findings.length };
-    }),
-  );
-
-  server.tool(
-    "validate_project_config",
-    "Validate project.godot: the main scene exists, autoload paths exist, and " +
-      "input actions are well-formed.",
-    { path: z.string().describe("Path to the Godot project root") },
-    async (args) => guard(() => {
-      const findings = validateProjectConfig((args as { path: string }).path);
-      return { findings, count: findings.length };
-    }),
-  );
-
-  server.tool(
-    "validate_registries",
-    "Deep-validate data-driven .tres registries in the configured registryDirs: " +
-      "each parses, its script resolves (recording class_name), and every " +
-      "resource-path property points at an existing file (the dangling-path check).",
-    { path: z.string().describe("Path to the Godot project root") },
-    async (args) => guard(() => validateRegistries((args as { path: string }).path)),
-  );
-
-  server.tool(
-    "project_report",
-    "Aggregate all static checks (scenes, project config, registries, and " +
-      "GDScript lint) into one report with severity counts.",
-    { path: z.string().describe("Path to the Godot project root") },
-    async (args) => {
-      try {
-        return ok(await projectReport((args as { path: string }).path));
-      } catch (err) {
-        return fail(err instanceof Error ? err.message : String(err));
-      }
+    {
+      description:
+        "Validate every .tscn under a project root: ext_resource paths resolve, " +
+        "ExtResource references are declared, and there are no duplicate resource ids.",
+      inputSchema: ROOT_ARG,
+      annotations: READ_ONLY,
     },
+    async ({ path }) =>
+      guard(() => {
+        requireDir(path);
+        const findings = validateScenes(path);
+        return { root: path, findings, count: findings.length };
+      }),
+  );
+
+  server.registerTool(
+    "validate_project_config",
+    {
+      description:
+        "Validate project.godot: the main scene exists, autoload paths exist, and " +
+        "input actions are well-formed.",
+      inputSchema: ROOT_ARG,
+      annotations: READ_ONLY,
+    },
+    async ({ path }) =>
+      guard(() => {
+        requireDir(path);
+        const findings = validateProjectConfig(path);
+        return { root: path, findings, count: findings.length };
+      }),
+  );
+
+  server.registerTool(
+    "validate_registries",
+    {
+      description:
+        "Deep-validate data-driven .tres registries in the configured registryDirs: " +
+        "each parses, its script resolves (recording class_name), and every " +
+        "resource-path property points at an existing file (the dangling-path check).",
+      inputSchema: ROOT_ARG,
+      annotations: READ_ONLY,
+    },
+    async ({ path }) =>
+      guard(() => {
+        requireDir(path);
+        return { root: path, ...validateRegistries(path) };
+      }),
+  );
+
+  server.registerTool(
+    "project_report",
+    {
+      description:
+        "Aggregate all static checks (scenes, project config, registries, and " +
+        "GDScript lint) into one report with severity counts.",
+      inputSchema: ROOT_ARG,
+      annotations: READ_ONLY,
+    },
+    async ({ path }) =>
+      guard(() => {
+        requireDir(path);
+        return projectReport(path);
+      }),
   );
 }

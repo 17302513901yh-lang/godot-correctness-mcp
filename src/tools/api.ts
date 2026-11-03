@@ -1,81 +1,67 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { PINNED_GODOT_VERSIONS } from "../capabilities.js";
 import { availableVersions, loadSymbolDb } from "../symbols/db.js";
 import {
   classSummary,
   diffClass,
   diffSymbol,
   lookupSymbol,
-  type SymbolKind,
+  SYMBOL_KINDS,
 } from "../symbols/lookup.js";
+import { fail, guard, ok } from "./result.js";
 
-const VERSION = z.enum(["4.4", "4.5"]);
-const KIND = z.enum([
-  "class",
-  "method",
-  "property",
-  "signal",
-  "enum",
-  "constant",
-  "builtin_class",
-  "builtin_method",
-  "utility_function",
-  "singleton",
-  "global_enum",
-]);
+export const VERSION = z.enum(PINNED_GODOT_VERSIONS);
+const KIND = z.enum(SYMBOL_KINDS);
 
-type ToolResult = { content: { type: "text"; text: string }[] };
+/** Default api_diff pair: the two newest pinned versions. */
+export const DIFF_DEFAULT_FROM = PINNED_GODOT_VERSIONS[PINNED_GODOT_VERSIONS.length - 2]!;
+export const DIFF_DEFAULT_TO = PINNED_GODOT_VERSIONS[PINNED_GODOT_VERSIONS.length - 1]!;
 
-function ok(data: unknown): ToolResult {
-  return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
-}
-
-function fail(message: string): ToolResult {
-  return { content: [{ type: "text", text: JSON.stringify({ error: message }, null, 2) }] };
-}
+const READ_ONLY = { readOnlyHint: true, openWorldHint: false } as const;
 
 /** Register the API symbol lookup / summary / diff tools. */
 export function registerApiTools(server: McpServer): void {
-  server.tool(
+  server.registerTool(
     "api_symbol_lookup",
-    "Look up a Godot API symbol (class, method, property, or signal) by name across " +
-      "the pinned Godot versions. Supports 'Owner.member' queries. Returns full " +
-      "signature data, or closest-match suggestions on a miss.",
     {
-      symbol: z.string().describe("Symbol name, e.g. 'Node', 'move_and_slide', or 'Node.get_child_count'"),
-      version: VERSION.optional().describe("Limit to one version; omit to search all available versions"),
-      kind: KIND.optional().describe("Restrict results to one symbol kind"),
+      description:
+        "Look up a Godot API symbol (class, method, property, or signal) by name across " +
+        "the pinned Godot versions. Supports 'Owner.member' queries. Returns full " +
+        "signature data, or closest-match suggestions on a miss.",
+      inputSchema: {
+        symbol: z.string().min(1).describe("Symbol name, e.g. 'Node', 'move_and_slide', or 'Node.get_child_count'"),
+        version: VERSION.optional().describe("Limit to one version; omit to search all available versions"),
+        kind: KIND.optional().describe("Restrict results to one symbol kind"),
+      },
+      annotations: READ_ONLY,
     },
-    async (args) => {
-      const { symbol, version, kind } = args as {
-        symbol: string;
-        version?: "4.4" | "4.5";
-        kind?: SymbolKind;
-      };
+    async ({ symbol, version, kind }) => {
       const versions = version ? [version] : availableVersions();
       if (versions.length === 0) return fail("No symbol databases are available.");
-      try {
-        const byVersion = Object.fromEntries(
+      return guard(() => {
+        const results = Object.fromEntries(
           versions.map((v) => [v, lookupSymbol(loadSymbolDb(v), symbol, kind ? { kind } : {})]),
         );
-        return ok({ symbol, versions, results: byVersion });
-      } catch (err) {
-        return fail(err instanceof Error ? err.message : String(err));
-      }
+        return { symbol, versions, results };
+      });
     },
   );
 
-  server.tool(
+  server.registerTool(
     "api_class_summary",
-    "Full member listing for one Godot class in one version: inheritance chain, " +
-      "methods, properties, signals, enums, and constants.",
     {
-      class: z.string().describe("Class name, e.g. 'CharacterBody2D'"),
-      version: VERSION.describe("Which Godot version to summarize"),
+      description:
+        "Full member listing for one Godot class in one version: inheritance chain, " +
+        "methods, properties, signals, enums, and constants.",
+      inputSchema: {
+        class: z.string().min(1).describe("Class name, e.g. 'CharacterBody2D'"),
+        version: VERSION.describe("Which Godot version to summarize"),
+      },
+      annotations: READ_ONLY,
     },
-    async (args) => {
-      const { class: className, version } = args as { class: string; version: "4.4" | "4.5" };
-      try {
+    async ({ class: className, version }) =>
+      guard(() => {
         const db = loadSymbolDb(version);
         const summary = classSummary(db, className);
         if (!summary) {
@@ -85,31 +71,27 @@ export function registerApiTools(server: McpServer): void {
               (suggestions.length ? ` Did you mean: ${suggestions.map((s) => s.name).join(", ")}?` : ""),
           );
         }
-        return ok({ version, ...summary });
-      } catch (err) {
-        return fail(err instanceof Error ? err.message : String(err));
-      }
-    },
+        return { version, ...summary };
+      }),
   );
 
-  server.tool(
+  server.registerTool(
     "api_diff",
-    "Diff a Godot class or symbol between two versions (default 4.4 -> 4.5): what " +
-      "was added, removed, or had its signature changed, with old and new signatures " +
-      "side by side.",
     {
-      symbol: z.string().describe("Class name (e.g. 'TileMap') or symbol (e.g. 'move_and_slide')"),
-      from: VERSION.optional().describe("Base version (default 4.4)"),
-      to: VERSION.optional().describe("Target version (default 4.5)"),
+      description:
+        `Diff a Godot class or symbol between two versions (default ${DIFF_DEFAULT_FROM} -> ` +
+        `${DIFF_DEFAULT_TO}): what was added, removed, or had its signature changed, with ` +
+        "old and new signatures side by side.",
+      inputSchema: {
+        symbol: z.string().min(1).describe("Class name (e.g. 'TileMap') or symbol (e.g. 'move_and_slide')"),
+        from: VERSION.optional().describe(`Base version (default ${DIFF_DEFAULT_FROM})`),
+        to: VERSION.optional().describe(`Target version (default ${DIFF_DEFAULT_TO})`),
+      },
+      annotations: READ_ONLY,
     },
-    async (args) => {
-      const { symbol, from = "4.4", to = "4.5" } = args as {
-        symbol: string;
-        from?: "4.4" | "4.5";
-        to?: "4.5" | "4.4";
-      };
+    async ({ symbol, from = DIFF_DEFAULT_FROM, to = DIFF_DEFAULT_TO }) => {
       if (from === to) return fail("'from' and 'to' must be different versions.");
-      try {
+      return guard(() => {
         const fromDb = loadSymbolDb(from);
         const toDb = loadSymbolDb(to);
         // A dotted query is always a member; otherwise try a class diff first.
@@ -117,10 +99,8 @@ export function registerApiTools(server: McpServer): void {
           const cd = diffClass(fromDb, toDb, symbol);
           if (cd.presence.inFrom || cd.presence.inTo) return ok({ type: "class", diff: cd });
         }
-        return ok({ type: "symbol", diff: diffSymbol(fromDb, toDb, symbol) });
-      } catch (err) {
-        return fail(err instanceof Error ? err.message : String(err));
-      }
+        return { type: "symbol", diff: diffSymbol(fromDb, toDb, symbol) };
+      });
     },
   );
 }

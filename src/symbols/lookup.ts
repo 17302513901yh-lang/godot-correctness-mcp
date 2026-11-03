@@ -56,18 +56,21 @@ function formatEnum(e: EnumDef, owner?: string): string {
 // Symbol index + lookup
 // ---------------------------------------------------------------------------
 
-export type SymbolKind =
-  | "class"
-  | "method"
-  | "property"
-  | "signal"
-  | "enum"
-  | "constant"
-  | "builtin_class"
-  | "builtin_method"
-  | "utility_function"
-  | "singleton"
-  | "global_enum";
+export const SYMBOL_KINDS = [
+  "class",
+  "method",
+  "property",
+  "signal",
+  "enum",
+  "constant",
+  "builtin_class",
+  "builtin_method",
+  "utility_function",
+  "singleton",
+  "global_enum",
+] as const;
+
+export type SymbolKind = (typeof SYMBOL_KINDS)[number];
 
 export interface SymbolMatch {
   kind: SymbolKind;

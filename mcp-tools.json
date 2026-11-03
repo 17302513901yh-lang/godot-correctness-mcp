@@ -4,8 +4,7 @@
     "description": "Report this server's version, the pinned Godot versions it targets (4.4, 4.5), and which correctness pillars (GDScript lint, API symbols, scene/resource analysis) are currently available. Takes no arguments.",
     "inputSchema": {
       "type": "object",
-      "properties": {},
-      "required": []
+      "properties": {}
     }
   },
   {
@@ -14,11 +13,42 @@
     "inputSchema": {
       "type": "object",
       "properties": {
-        "symbol": { "type": "string", "description": "Symbol name, e.g. 'Node', 'move_and_slide', or 'Node.get_child_count'" },
-        "version": { "type": "string", "enum": ["4.4", "4.5"], "description": "Limit to one version; omit to search all available versions" },
-        "kind": { "type": "string", "enum": ["class", "method", "property", "signal", "enum", "constant", "builtin_class", "builtin_method", "utility_function", "singleton", "global_enum"], "description": "Restrict results to one symbol kind" }
+        "symbol": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Symbol name, e.g. 'Node', 'move_and_slide', or 'Node.get_child_count'"
+        },
+        "version": {
+          "type": "string",
+          "enum": [
+            "4.4",
+            "4.5"
+          ],
+          "description": "Limit to one version; omit to search all available versions"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "class",
+            "method",
+            "property",
+            "signal",
+            "enum",
+            "constant",
+            "builtin_class",
+            "builtin_method",
+            "utility_function",
+            "singleton",
+            "global_enum"
+          ],
+          "description": "Restrict results to one symbol kind"
+        }
       },
-      "required": ["symbol"]
+      "required": [
+        "symbol"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
   {
@@ -27,10 +57,26 @@
     "inputSchema": {
       "type": "object",
       "properties": {
-        "class": { "type": "string", "description": "Class name, e.g. 'CharacterBody2D'" },
-        "version": { "type": "string", "enum": ["4.4", "4.5"], "description": "Which Godot version to summarize" }
+        "class": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Class name, e.g. 'CharacterBody2D'"
+        },
+        "version": {
+          "type": "string",
+          "enum": [
+            "4.4",
+            "4.5"
+          ],
+          "description": "Which Godot version to summarize"
+        }
       },
-      "required": ["class", "version"]
+      "required": [
+        "class",
+        "version"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
   {
@@ -39,23 +85,52 @@
     "inputSchema": {
       "type": "object",
       "properties": {
-        "symbol": { "type": "string", "description": "Class name (e.g. 'TileMap') or symbol (e.g. 'move_and_slide')" },
-        "from": { "type": "string", "enum": ["4.4", "4.5"], "description": "Base version (default 4.4)" },
-        "to": { "type": "string", "enum": ["4.4", "4.5"], "description": "Target version (default 4.5)" }
+        "symbol": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Class name (e.g. 'TileMap') or symbol (e.g. 'move_and_slide')"
+        },
+        "from": {
+          "type": "string",
+          "enum": [
+            "4.4",
+            "4.5"
+          ],
+          "description": "Base version (default 4.4)"
+        },
+        "to": {
+          "$ref": "#/properties/from",
+          "description": "Target version (default 4.5)"
+        }
       },
-      "required": ["symbol"]
+      "required": [
+        "symbol"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
   {
     "name": "lint_file",
-    "description": "Lint a single GDScript (.gd) file against the default ruleset. Provide either inline source or a path on disk. Config is loaded from the file's directory if a godot-correctness.config.json is present. Returns a findings array.",
+    "description": "Lint a single GDScript (.gd) file against the default ruleset. 'path' is required; pass 'source' to lint unsaved text instead of reading the file. Config is loaded from the nearest ancestor directory containing godot-correctness.config.json or project.godot (the project root), the same config lint_project uses. Returns a findings array.",
     "inputSchema": {
       "type": "object",
       "properties": {
-        "path": { "type": "string", "description": "Path to the .gd file (used for the reported location and config lookup)" },
-        "source": { "type": "string", "description": "Inline GDScript source; if omitted, the file at 'path' is read" }
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to the .gd file (used for the reported location and config lookup)"
+        },
+        "source": {
+          "type": "string",
+          "description": "Inline GDScript source; if omitted, the file at 'path' is read"
+        }
       },
-      "required": ["path"]
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
   {
@@ -64,9 +139,17 @@
     "inputSchema": {
       "type": "object",
       "properties": {
-        "path": { "type": "string", "description": "Path to the Godot project root" }
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to the Godot project root"
+        }
       },
-      "required": ["path"]
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
   {
@@ -74,8 +157,18 @@
     "description": "Validate every .tscn under a project root: ext_resource paths resolve, ExtResource references are declared, and there are no duplicate resource ids.",
     "inputSchema": {
       "type": "object",
-      "properties": { "path": { "type": "string", "description": "Path to the Godot project root" } },
-      "required": ["path"]
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to the Godot project root"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
   {
@@ -83,8 +176,18 @@
     "description": "Validate project.godot: the main scene exists, autoload paths exist, and input actions are well-formed.",
     "inputSchema": {
       "type": "object",
-      "properties": { "path": { "type": "string", "description": "Path to the Godot project root" } },
-      "required": ["path"]
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to the Godot project root"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
   {
@@ -92,8 +195,18 @@
     "description": "Deep-validate data-driven .tres registries in the configured registryDirs: each parses, its script resolves (recording class_name), and every resource-path property points at an existing file (the dangling-path check).",
     "inputSchema": {
       "type": "object",
-      "properties": { "path": { "type": "string", "description": "Path to the Godot project root" } },
-      "required": ["path"]
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to the Godot project root"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
   {
@@ -101,8 +214,18 @@
     "description": "Aggregate all static checks (scenes, project config, registries, and GDScript lint) into one report with severity counts.",
     "inputSchema": {
       "type": "object",
-      "properties": { "path": { "type": "string", "description": "Path to the Godot project root" } },
-      "required": ["path"]
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to the Godot project root"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   }
 ]

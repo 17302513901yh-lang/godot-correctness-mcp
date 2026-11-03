@@ -20,6 +20,7 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "validate:artifacts": "tsx scripts/validate-symbol-db.ts",
+    "generate:tools": "tsx scripts/generate-mcp-tools.ts",
     "dev": "tsx watch src/index.ts",
     "prepublishOnly": "npm run build"
   },

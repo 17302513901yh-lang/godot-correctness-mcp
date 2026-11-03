@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
 import type { Severity } from "./types.js";
 
@@ -14,18 +14,25 @@ const ruleConfigSchema = z.object({
 });
 export type RuleConfig = z.infer<typeof ruleConfigSchema>;
 
-export const configSchema = z.object({
-  /** Globs (relative to project root) of files to lint. */
-  include: z.array(z.string()).optional(),
-  /** Globs to exclude. */
-  exclude: z.array(z.string()).optional(),
-  /** Per-rule enable/disable, severity override, and options. */
-  rules: z.record(z.string(), ruleConfigSchema).optional(),
-  /** Directories of data-driven .tres registries to deep-validate (Phase 4). */
-  registryDirs: z.array(z.string()).optional(),
-  /** Property-name globs to treat as resource paths (Phase 4). */
-  pathPropertyPatterns: z.array(z.string()).optional(),
-});
+export const configSchema = z
+  .object({
+    /** Optional JSON schema pointer for editors; ignored. */
+    $schema: z.string().optional(),
+    /** Free-form comment; ignored. */
+    $comment: z.string().optional(),
+    /** Globs (relative to project root) of files to lint. */
+    include: z.array(z.string()).optional(),
+    /** Globs to exclude. */
+    exclude: z.array(z.string()).optional(),
+    /** Per-rule enable/disable, severity override, and options. */
+    rules: z.record(z.string(), ruleConfigSchema).optional(),
+    /** Directories of data-driven .tres registries to deep-validate. */
+    registryDirs: z.array(z.string()).optional(),
+    /** Property-name globs to treat as resource paths. */
+    pathPropertyPatterns: z.array(z.string()).optional(),
+  })
+  // Reject unknown keys so a typo like "exlude" fails loudly instead of being ignored.
+  .strict();
 export type GodotCorrectnessConfig = z.infer<typeof configSchema>;
 
 export const DEFAULT_INCLUDE = ["**/*.gd"];
@@ -55,8 +62,34 @@ export function resolveConfig(raw: GodotCorrectnessConfig = {}): ResolvedConfig 
 export function loadConfig(projectRoot: string): ResolvedConfig {
   const path = join(projectRoot, CONFIG_FILENAME);
   if (!existsSync(path)) return resolveConfig();
-  const raw = JSON.parse(readFileSync(path, "utf-8")) as unknown;
-  return resolveConfig(configSchema.parse(raw));
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(path, "utf-8"));
+  } catch (err) {
+    throw new Error(`Invalid ${CONFIG_FILENAME} at ${path}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  const parsed = configSchema.safeParse(raw);
+  if (!parsed.success) {
+    const issues = parsed.error.issues
+      .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+      .join("; ");
+    throw new Error(`Invalid ${CONFIG_FILENAME} at ${path}: ${issues}`);
+  }
+  return resolveConfig(parsed.data);
+}
+
+/**
+ * Find the project root for a file: the nearest ancestor directory (starting at
+ * `startDir`) containing a config file or project.godot. Null when none exists.
+ */
+export function findProjectRoot(startDir: string): string | null {
+  let dir = resolve(startDir);
+  for (;;) {
+    if (existsSync(join(dir, CONFIG_FILENAME)) || existsSync(join(dir, "project.godot"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
 }
 
 /** Whether a rule is enabled (default: enabled unless explicitly disabled). */
