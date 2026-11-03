@@ -1,6 +1,6 @@
 {
   "name": "@tmhs/godot-correctness-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Offline static correctness MCP server for Godot 4.x GDScript projects",
   "type": "module",
   "main": "dist/index.js",

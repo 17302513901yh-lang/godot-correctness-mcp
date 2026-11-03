@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-03
+
 ### Fixed
 
 - The MCP server and `gdcorrect` now run when launched through npm's bin symlinks (Linux/macOS `npx` and global installs previously exited 0 without doing anything) (#31)
