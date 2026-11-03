@@ -88,6 +88,18 @@ jobs:
         run: npx -y -p @tmhs/godot-correctness-mcp gdcorrect validate-registries . --format json
 ```
 
+**Adopting the gate on an existing project:** record today's findings once and
+fail only on new ones.
+
+```bash
+gdcorrect report . --write-baseline gdcorrect-baseline.json   # commit this file
+gdcorrect report . --baseline gdcorrect-baseline.json         # in CI
+```
+
+Findings are matched by rule, file, and the text of the flagged line, so edits
+that only shift lines keep matching. Fixed findings show up as stale entries;
+rewrite the baseline to drop them.
+
 To show findings as pull-request annotations, upload SARIF to code scanning
 (run from the repository root so paths line up):
 

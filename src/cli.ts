@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { applyBaseline, createBaseline, readBaseline, writeBaseline } from "./baseline.js";
 import { isMainModule } from "./entry.js";
 import { lintProject } from "./lint/project.js";
 import type { Finding } from "./lint/types.js";
@@ -87,17 +88,40 @@ export function renderPretty(res: CommandResult): string {
   return lines.join("\n").trimStart();
 }
 
-function parseArgs(argv: string[]): { command?: string; root?: string; format: string } {
-  let format = "json";
+interface CliArgs {
+  command?: string;
+  root?: string;
+  format: string;
+  baseline?: string;
+  writeBaseline?: string;
+}
+
+function parseArgs(argv: string[]): CliArgs {
+  const args: CliArgs = { format: "json" };
   const positional: string[] = [];
+  // Supports both `--flag value` and `--flag=value`.
+  const flags: Record<string, (v: string) => void> = {
+    "--format": (v) => (args.format = v),
+    "-f": (v) => (args.format = v),
+    "--baseline": (v) => (args.baseline = v),
+    "--write-baseline": (v) => (args.writeBaseline = v),
+  };
   for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === "--format" || a === "-f") format = argv[++i] ?? "";
-    else if (a.startsWith("--format=")) format = a.slice("--format=".length);
+    const a = argv[i]!;
+    const eq = a.indexOf("=");
+    const name = a.startsWith("-") && eq > 0 ? a.slice(0, eq) : a;
+    const set = flags[name];
+    if (set) set(eq > 0 && name !== a ? a.slice(eq + 1) : (argv[++i] ?? ""));
     else positional.push(a);
   }
-  return { command: positional[0], root: positional[1], format };
+  args.command = positional[0];
+  args.root = positional[1];
+  return args;
 }
+
+const USAGE =
+  `Usage: gdcorrect <${[...COMMANDS].join("|")}> <projectPath> [--format ${FORMATS.join("|")}]\n` +
+  "                 [--baseline <file>] [--write-baseline <file>]";
 
 function render(res: CommandResult, format: Format): string {
   switch (format) {
@@ -120,17 +144,45 @@ export async function runCli(
   log: (s: string) => void = console.log,
   errOut: (s: string) => void = console.error,
 ): Promise<number> {
-  const { command, root, format } = parseArgs(argv);
+  const { command, root, format, baseline, writeBaseline: writeTo } = parseArgs(argv);
   if (!command || !COMMANDS.has(command) || !root) {
-    errOut(`Usage: gdcorrect <${[...COMMANDS].join("|")}> <projectPath> [--format ${FORMATS.join("|")}]`);
+    errOut(USAGE);
     return 2;
   }
   if (!isFormat(format)) {
     errOut(`Unknown format: ${format}. Use one of: ${FORMATS.join(", ")}.`);
     return 2;
   }
+  if (baseline !== undefined && writeTo !== undefined) {
+    errOut("gdcorrect: use either --baseline or --write-baseline, not both.");
+    return 2;
+  }
   try {
-    const res = await runCommand(command, root);
+    let res = await runCommand(command, root);
+    if (writeTo) {
+      const b = createBaseline(root, res.findings);
+      writeBaseline(writeTo, b);
+      errOut(`gdcorrect: wrote ${res.findings.length} finding(s) to baseline ${writeTo}.`);
+      return 0;
+    }
+    if (baseline) {
+      const r = applyBaseline(root, res.findings, readBaseline(baseline));
+      res = {
+        root,
+        findings: r.newFindings,
+        payload: {
+          root,
+          findings: r.newFindings,
+          count: r.newFindings.length,
+          baselined: r.baselined,
+          staleBaselineEntries: r.stale,
+        },
+      };
+      errOut(
+        `gdcorrect: ${r.baselined} finding(s) matched the baseline` +
+          (r.stale ? `; ${r.stale} baseline entr${r.stale === 1 ? "y is" : "ies are"} stale (fixed) and can be removed by rewriting it.` : "."),
+      );
+    }
     log(render(res, format));
     return countErrors(res.findings) > 0 ? 1 : 0;
   } catch (err) {
