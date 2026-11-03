@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- Inline suppression comments: `# gdcorrect-ignore[rule]`, `# gdcorrect-ignore-file[rule]`, with `unused-suppression` reporting (#33)
+
+### Fixed
+
+- `gdcorrect` exits 2 for a nonexistent project directory instead of reporting a clean run
+
 ## [0.1.2] - 2026-11-03
 
 ### Fixed

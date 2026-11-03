@@ -61,6 +61,27 @@ error naming the config file, rather than silently ignored. `$schema` and
 the nearest ancestor directory that contains `godot-correctness.config.json` or
 `project.godot`.
 
+## Inline suppressions
+
+Silence a specific finding without disabling the rule project-wide:
+
+```gdscript
+var legacy = load_thing()  # gdcorrect-ignore[untyped-declaration]
+
+# gdcorrect-ignore[get-node-in-process]
+var hud := get_node("HUD")   # a comment-only directive applies to the next line
+
+# gdcorrect-ignore-file[stringly-nodepath]   # whole file
+```
+
+- `# gdcorrect-ignore[rule-a, rule-b]` on a code line applies to that line; on a
+  comment-only line it applies to the next line.
+- Omit the brackets (`# gdcorrect-ignore`) to silence every rule on that line.
+- `# gdcorrect-ignore-file[...]` applies to the whole file.
+- A directive that silences nothing is reported as an `unused-suppression`
+  `info` finding so stale comments get cleaned up. Configure it like any rule
+  (`"rules": { "unused-suppression": { "enabled": false } }`).
+
 ## CLI
 
 ```bash

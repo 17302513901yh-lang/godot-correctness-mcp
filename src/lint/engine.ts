@@ -7,6 +7,7 @@ import {
   type ResolvedConfig,
 } from "./config.js";
 import { DEFAULT_RULES } from "./rules/index.js";
+import { applySuppressions, UNUSED_SUPPRESSION_RULE } from "./suppressions.js";
 import type { Finding } from "./types.js";
 
 /**
@@ -27,6 +28,16 @@ export async function lintSource(
     // explicitly or a long-lived server grows without bound.
     tree.delete();
   }
+  findings = applySuppressions(
+    file,
+    source,
+    findings,
+    isRuleEnabled(config, UNUSED_SUPPRESSION_RULE),
+  ).map((f) =>
+    f.ruleId === UNUSED_SUPPRESSION_RULE
+      ? { ...f, severity: severityOverride(config, f.ruleId) ?? f.severity }
+      : f,
+  );
   findings.sort((a, b) => a.line - b.line || a.col - b.col || a.ruleId.localeCompare(b.ruleId));
   return findings;
 }
