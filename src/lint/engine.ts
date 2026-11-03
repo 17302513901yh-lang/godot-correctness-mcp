@@ -1,3 +1,4 @@
+import type { Node } from "web-tree-sitter";
 import { parseGDScript } from "../gdscript/parser.js";
 import {
   isRuleEnabled,
@@ -18,9 +19,20 @@ export async function lintSource(
   config: ResolvedConfig,
 ): Promise<Finding[]> {
   const tree = await parseGDScript(source);
-  const root = tree.rootNode;
-  const findings: Finding[] = [];
+  let findings: Finding[];
+  try {
+    findings = runRules(file, tree.rootNode, source, config);
+  } finally {
+    // Trees live on the WASM heap and are not garbage collected; free them
+    // explicitly or a long-lived server grows without bound.
+    tree.delete();
+  }
+  findings.sort((a, b) => a.line - b.line || a.col - b.col || a.ruleId.localeCompare(b.ruleId));
+  return findings;
+}
 
+function runRules(file: string, root: Node, source: string, config: ResolvedConfig): Finding[] {
+  const findings: Finding[] = [];
   for (const rule of DEFAULT_RULES) {
     if (!isRuleEnabled(config, rule.id)) continue;
     const raws = rule.check({ root, source, options: ruleOptions(config, rule.id) });
@@ -38,7 +50,5 @@ export async function lintSource(
       });
     }
   }
-
-  findings.sort((a, b) => a.line - b.line || a.col - b.col || a.ruleId.localeCompare(b.ruleId));
   return findings;
 }

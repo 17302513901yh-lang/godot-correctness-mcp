@@ -25,20 +25,38 @@ let parserPromise: Promise<Parser> | null = null;
 async function getLanguage(): Promise<Language> {
   // Parser.init() loads web-tree-sitter's own runtime wasm (auto-located from
   // node_modules on Node); the grammar is loaded from the committed bytes.
-  if (!initPromise) initPromise = Parser.init();
+  // A rejected promise is not cached, so a transient failure can be retried.
+  if (!initPromise) {
+    initPromise = Parser.init().catch((err: unknown) => {
+      initPromise = null;
+      throw err;
+    });
+  }
   await initPromise;
-  if (!langPromise) langPromise = Language.load(new Uint8Array(readFileSync(wasmPath)));
+  if (!langPromise) {
+    langPromise = Promise.resolve()
+      .then(() => Language.load(new Uint8Array(readFileSync(wasmPath))))
+      .catch((err: unknown) => {
+        langPromise = null;
+        throw err;
+      });
+  }
   return langPromise;
 }
 
 /** Get a shared, initialized GDScript parser (reused across files, sequential). */
 export async function getParser(): Promise<Parser> {
   if (!parserPromise) {
-    parserPromise = getLanguage().then((lang) => {
-      const parser = new Parser();
-      parser.setLanguage(lang);
-      return parser;
-    });
+    parserPromise = getLanguage()
+      .then((lang) => {
+        const parser = new Parser();
+        parser.setLanguage(lang);
+        return parser;
+      })
+      .catch((err: unknown) => {
+        parserPromise = null;
+        throw err;
+      });
   }
   return parserPromise;
 }
