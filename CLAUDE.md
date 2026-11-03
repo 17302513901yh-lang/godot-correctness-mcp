@@ -1,3 +1,5 @@
+<!-- standards-version: 1.10.0 -->
+
 # CLAUDE.md
 
 This file provides guidance for Claude Code when working in this repository.
