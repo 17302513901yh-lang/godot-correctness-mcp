@@ -22,6 +22,7 @@ For every `.tscn` under the project root:
 | `scene-missing-sub-resource-id` | error | A `SubResource("id")` reference whose id has no `[sub_resource]` declaration in the file. |
 | `scene-node-parent-missing` | error | A `[node parent="..."]` path that names no node declared in the scene (paths under instanced sub-scenes are skipped). |
 | `scene-connection-method-missing` | error | A `[connection]` whose target node's script has no such method. Checked only when the script directly `extends` a built-in class, so its own `func`s plus the engine class chain (from the symbol DB) are the complete method set. |
+| `scene-node-path-missing` | warning | A literal `$A/B`, `$"A/B"`, or `get_node("A/B")` in a script that resolves in none of the scenes the script is attached to. Skipped when any attaching scene is instanced/inherited at that node, when the path crosses an instanced child, and for absolute, `..`, and `%Unique` paths. Suppress runtime-added nodes with `# gdcorrect-ignore[scene-node-path-missing]`. |
 
 `res://` maps to the project root. `uid://` references resolve through a static
 index built from what Godot 4.4+ commits next to the files: `<file>.uid`

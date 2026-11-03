@@ -1,6 +1,7 @@
 import { loadConfig, type ResolvedConfig } from "../lint/config.js";
 import { lintProject } from "../lint/project.js";
 import type { Finding } from "../lint/types.js";
+import { validateNodePaths } from "./node-paths.js";
 import {
   validateProjectConfig,
   validateRegistries,
@@ -27,7 +28,7 @@ export async function projectReport(
   config?: ResolvedConfig,
 ): Promise<ProjectReport> {
   const cfg = config ?? loadConfig(root);
-  const scenes = validateScenes(root, cfg);
+  const scenes = [...validateScenes(root, cfg), ...(await validateNodePaths(root, cfg))];
   const project = validateProjectConfig(root, cfg);
   const reg = validateRegistries(root, cfg);
   const lint = (await lintProject(root, cfg)).findings;

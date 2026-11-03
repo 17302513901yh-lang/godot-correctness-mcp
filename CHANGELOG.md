@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Scene checks `scene-missing-sub-resource-id`, `scene-node-parent-missing`, and `scene-connection-method-missing`; ExtResource refs inside `[sub_resource]` sections are now checked too (#52)
 - `uid://` references resolve through `.uid` sidecars, `.import` files, and scene headers: new `scene-ext-resource-path-stale`, `scene-ext-resource-uid-mismatch`, and `scene-ext-resource-uid-unknown` checks, and `uid://` main scenes and autoloads are validated (#35)
 - Opt-in `removed-api-usage` lint rule: flags engine API removed (or call arity broken) in a target Godot version, using the symbol DBs (#36)
+- `scene-node-path-missing`: literal `$Path` / `get_node()` paths are checked against the scenes that attach the script (#54)
 
 ### Fixed
 

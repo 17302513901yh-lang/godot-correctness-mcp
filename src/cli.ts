@@ -5,6 +5,7 @@ import { lintProject } from "./lint/project.js";
 import type { Finding } from "./lint/types.js";
 import { requireDir } from "./project/walk.js";
 import { toSarif } from "./sarif.js";
+import { validateNodePaths } from "./scenes/node-paths.js";
 import { projectReport } from "./scenes/report.js";
 import { validateProjectConfig, validateRegistries, validateScenes } from "./scenes/validate.js";
 import { readVersion } from "./server-info.js";
@@ -39,7 +40,7 @@ async function runCommand(command: string, root: string): Promise<CommandResult>
       return { root, findings: r.findings, payload: r };
     }
     case "validate-scenes": {
-      const findings = validateScenes(root);
+      const findings = [...validateScenes(root), ...(await validateNodePaths(root))];
       return { root, findings, payload: { root, findings, count: findings.length } };
     }
     case "validate-project": {

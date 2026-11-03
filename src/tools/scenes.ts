@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { validateNodePaths } from "../scenes/node-paths.js";
 import { projectReport } from "../scenes/report.js";
 import {
   validateProjectConfig,
@@ -20,14 +21,15 @@ export function registerSceneTools(server: McpServer): void {
       description:
         "Validate every .tscn under a project root: ext_resource paths resolve, " +
         "ExtResource/SubResource references are declared, there are no duplicate resource " +
-        "ids, node parent paths exist, and [connection] targets have the named method.",
+        "ids, node parent paths exist, [connection] targets have the named method, and " +
+        "literal $Path/get_node() paths in attached scripts exist in the scene.",
       inputSchema: ROOT_ARG,
       annotations: READ_ONLY,
     },
     async ({ path }) =>
-      guard(() => {
+      guard(async () => {
         requireDir(path);
-        const findings = validateScenes(path);
+        const findings = [...validateScenes(path), ...(await validateNodePaths(path))];
         return { root: path, findings, count: findings.length };
       }),
   );

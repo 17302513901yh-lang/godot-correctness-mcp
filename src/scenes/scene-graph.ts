@@ -36,14 +36,14 @@ export function checkSubResourceRefs(rel: string, file: GodotFile): Finding[] {
   return out;
 }
 
-interface SceneNode {
+export interface SceneNode {
   path: string;
   section: GodotSection;
   instanced: boolean;
 }
 
 /** Map node path ("." for the root, "A", "A/B") to its section. */
-function nodeTree(file: GodotFile): Map<string, SceneNode> {
+export function nodeTree(file: GodotFile): Map<string, SceneNode> {
   const nodes = new Map<string, SceneNode>();
   for (const s of sectionsOfKind(file, "node")) {
     const name = s.attributes["name"]?.string;
