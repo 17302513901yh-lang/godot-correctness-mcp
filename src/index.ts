@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { pathToFileURL } from "node:url";
+import { isMainModule } from "./entry.js";
 import { registerSkillResources } from "./resources/skills.js";
 import { getServerInfo, readVersion, SERVER_NAME } from "./server-info.js";
 import { registerApiTools } from "./tools/api.js";
@@ -38,11 +38,7 @@ async function main(): Promise<void> {
 }
 
 // Run the stdio server only when executed directly, not when imported by tests.
-const invokedDirectly =
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(process.argv[1]).href;
-
-if (invokedDirectly) {
+if (isMainModule(import.meta.url)) {
   main().catch((err: unknown) => {
     console.error(err);
     process.exit(1);

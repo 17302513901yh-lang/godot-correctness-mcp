@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { pathToFileURL } from "node:url";
+import { isMainModule } from "./entry.js";
 import { lintProject } from "./lint/project.js";
 import type { Finding } from "./lint/types.js";
 import { projectReport } from "./scenes/report.js";
@@ -115,10 +115,7 @@ export async function runCli(
   }
 }
 
-const invokedDirectly =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
-
-if (invokedDirectly) {
+if (isMainModule(import.meta.url)) {
   runCli(process.argv.slice(2))
     .then((code) => process.exit(code))
     .catch(() => process.exit(2));
