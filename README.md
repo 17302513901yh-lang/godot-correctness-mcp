@@ -53,7 +53,7 @@ As an MCP server (Claude Desktop / Cursor `mcpServers` config):
 As a CLI:
 
 ```bash
-npx -y @tmhs/godot-correctness-mcp gdcorrect lint . --format json
+npx -y -p @tmhs/godot-correctness-mcp gdcorrect lint . --format json
 ```
 
 ## MCP surface
@@ -82,9 +82,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - name: Lint GDScript (fails on error-severity findings)
-        run: npx -y @tmhs/godot-correctness-mcp gdcorrect lint . --format json
+        run: npx -y -p @tmhs/godot-correctness-mcp gdcorrect lint . --format json
       - name: Validate registries
-        run: npx -y @tmhs/godot-correctness-mcp gdcorrect validate-registries . --format json
+        run: npx -y -p @tmhs/godot-correctness-mcp gdcorrect validate-registries . --format json
 ```
 
 ## Configuration

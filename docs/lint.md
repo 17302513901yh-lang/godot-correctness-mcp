@@ -64,7 +64,7 @@ any error-severity finding, **2** on tool failure.
 ### GitHub Actions
 
 ```yaml
-- run: npx -y @tmhs/godot-correctness-mcp gdcorrect lint . --format json
+- run: npx -y -p @tmhs/godot-correctness-mcp gdcorrect lint . --format json
 ```
 
 The step fails the job (exit 1) when any `error`-severity finding is present.
