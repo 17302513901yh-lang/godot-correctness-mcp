@@ -12,6 +12,7 @@ import type { Finding, Severity } from "../lint/types.js";
 import { walkProject } from "../project/walk.js";
 import { checkInputActionUsage } from "./input-actions.js";
 import { looksLikeResourcePath, resolveResPath } from "./paths.js";
+import { checkConnections, checkNodeParents, checkSubResourceRefs } from "./scene-graph.js";
 
 function finding(
   file: string,
@@ -61,7 +62,11 @@ function extRefs(section: GodotSection): { key: string; ref: string; line: numbe
   return refs;
 }
 
-/** validate_scenes: ext_resource paths resolve, ext refs declared, no dup ids. */
+/**
+ * validate_scenes: ext_resource paths resolve, ExtResource/SubResource refs are
+ * declared, no duplicate ids, node parents exist, and [connection] targets
+ * have the named method.
+ */
 export function validateScenes(root: string, config?: ResolvedConfig): Finding[] {
   const cfg = config ?? loadConfig(root);
   const exclude = picomatch(cfg.exclude, { dot: true });
@@ -92,7 +97,7 @@ export function validateScenes(root: string, config?: ResolvedConfig): Finding[]
       }
     }
 
-    for (const section of [...sectionsOfKind(file, "node"), ...sectionsOfKind(file, "resource")]) {
+    for (const section of file.sections.filter((s) => s.kind !== "ext_resource")) {
       for (const { ref, line } of extRefs(section)) {
         if (!byId.has(ref)) {
           findings.push(
@@ -103,6 +108,12 @@ export function validateScenes(root: string, config?: ResolvedConfig): Finding[]
         }
       }
     }
+
+    findings.push(
+      ...checkSubResourceRefs(rel, file),
+      ...checkNodeParents(rel, file),
+      ...checkConnections(rel, file, root),
+    );
   }
   return findings;
 }

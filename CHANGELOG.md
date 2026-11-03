@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `gdcorrect --format sarif` emits SARIF 2.1.0 for GitHub code scanning annotations (#34)
 - `gdcorrect --write-baseline` / `--baseline` so existing projects can gate CI on new findings only (#53)
 - `project-input-action-undefined`: flags input action names used in scripts that are not defined in `project.godot` (#50)
+- Scene checks `scene-missing-sub-resource-id`, `scene-node-parent-missing`, and `scene-connection-method-missing`; ExtResource refs inside `[sub_resource]` sections are now checked too (#52)
 
 ### Fixed
 

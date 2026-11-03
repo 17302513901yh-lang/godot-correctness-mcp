@@ -19,7 +19,8 @@ export function registerSceneTools(server: McpServer): void {
     {
       description:
         "Validate every .tscn under a project root: ext_resource paths resolve, " +
-        "ExtResource references are declared, and there are no duplicate resource ids.",
+        "ExtResource/SubResource references are declared, there are no duplicate resource " +
+        "ids, node parent paths exist, and [connection] targets have the named method.",
       inputSchema: ROOT_ARG,
       annotations: READ_ONLY,
     },
@@ -35,8 +36,8 @@ export function registerSceneTools(server: McpServer): void {
     "validate_project_config",
     {
       description:
-        "Validate project.godot: the main scene exists, autoload paths exist, and " +
-        "input actions are well-formed.",
+        "Validate project.godot: the main scene exists, autoload paths exist, input " +
+        "actions are well-formed, and input action names used in scripts are defined.",
       inputSchema: ROOT_ARG,
       annotations: READ_ONLY,
     },
