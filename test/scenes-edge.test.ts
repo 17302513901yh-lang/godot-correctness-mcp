@@ -164,3 +164,45 @@ describe("CLI argument errors", () => {
     expect(await runCli(["lint", tmp, "--format", "xml"], noop, noop)).toBe(2);
   });
 });
+
+describe("project-input-action-undefined", () => {
+  const PROJECT =
+    "[input]\n\njump={\n\"deadzone\": 0.5,\n\"events\": []\n}\nmove_left={\n\"deadzone\": 0.5,\n\"events\": []\n}\n";
+
+  it("flags undefined action literals and ignores defined, built-in, commented, and dynamic ones", () => {
+    const root = project("input-actions", {
+      "project.godot": PROJECT,
+      "player.gd":
+        "extends Node\n\nfunc _process(_delta: float) -> void:\n" +
+        '\tif Input.is_action_pressed("jump"):\n' + // defined
+        "\t\tpass\n" +
+        '\tif Input.is_action_just_pressed(&"jmup"):\n' + // typo -> flagged (StringName literal)
+        "\t\tpass\n" +
+        '\tif Input.is_action_pressed("ui_accept"):\n' + // built-in
+        "\t\tpass\n" +
+        '\t# Input.is_action_pressed("commented_out")\n' +
+        '\tvar x := Input.get_axis("move_left", "move_rigth")\n' + // second arg is a typo
+        "\tvar name := \"dyn\"\n" +
+        "\tif Input.is_action_pressed(name):\n" + // dynamic -> ignored
+        "\t\tpass\n" +
+        '\tif InputMap.has_action("maybe"):\n' + // existence check -> ignored
+        "\t\tpass\n",
+    });
+    const hits = validateProjectConfig(root)
+      .filter((f) => f.ruleId === "project-input-action-undefined")
+      .map((f) => `${f.file}:${f.line}:${f.col} ${f.message}`);
+    expect(hits).toEqual([
+      'player.gd:6:34 Input action "jmup" is not defined in project.godot [input].',
+      'player.gd:11:39 Input action "move_rigth" is not defined in project.godot [input].',
+    ]);
+  });
+
+  it("respects exclude globs", () => {
+    const root = project("input-actions-excluded", {
+      "project.godot": PROJECT,
+      "godot-correctness.config.json": JSON.stringify({ exclude: ["addons/**"] }),
+      "addons/x/plugin.gd": 'func f() -> void:\n\tInput.is_action_pressed("plugin_only")\n',
+    });
+    expect(validateProjectConfig(root)).toEqual([]);
+  });
+});

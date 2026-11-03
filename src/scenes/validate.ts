@@ -10,6 +10,7 @@ import {
 import { loadConfig, type ResolvedConfig } from "../lint/config.js";
 import type { Finding, Severity } from "../lint/types.js";
 import { walkProject } from "../project/walk.js";
+import { checkInputActionUsage } from "./input-actions.js";
 import { looksLikeResourcePath, resolveResPath } from "./paths.js";
 
 function finding(
@@ -106,8 +107,8 @@ export function validateScenes(root: string, config?: ResolvedConfig): Finding[]
   return findings;
 }
 
-/** validate_project_config: main scene, autoloads, input map. */
-export function validateProjectConfig(root: string): Finding[] {
+/** validate_project_config: main scene, autoloads, input map, and input action usage. */
+export function validateProjectConfig(root: string, config?: ResolvedConfig): Finding[] {
   const projectPath = join(root, "project.godot");
   if (!existsSync(projectPath)) {
     return [finding("project.godot", 1, "project-missing", "error",
@@ -142,6 +143,14 @@ export function validateProjectConfig(root: string): Finding[] {
   }
 
   const input = file.sections.find((s) => s.kind === "input");
+  const cfg = config ?? loadConfig(root);
+  findings.push(
+    ...checkInputActionUsage(
+      root,
+      new Set(Object.keys(input?.properties ?? {})),
+      picomatch(cfg.exclude, { dot: true }),
+    ),
+  );
   if (input) {
     for (const [name, v] of Object.entries(input.properties)) {
       if (!v.raw.trimStart().startsWith("{")) {

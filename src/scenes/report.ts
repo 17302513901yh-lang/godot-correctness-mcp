@@ -28,7 +28,7 @@ export async function projectReport(
 ): Promise<ProjectReport> {
   const cfg = config ?? loadConfig(root);
   const scenes = validateScenes(root, cfg);
-  const project = validateProjectConfig(root);
+  const project = validateProjectConfig(root, cfg);
   const reg = validateRegistries(root, cfg);
   const lint = (await lintProject(root, cfg)).findings;
 

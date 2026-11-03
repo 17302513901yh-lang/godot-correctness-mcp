@@ -29,6 +29,7 @@ Reads `project.godot`:
 | `project-main-scene-missing` | error | `run/main_scene` points at a missing scene. |
 | `project-autoload-missing` | error | An `[autoload]` entry points at a missing file (leading `*` handled). |
 | `project-input-malformed` | warning | An `[input]` action that is not a well-formed dictionary. |
+| `project-input-action-undefined` | warning | A string-literal action name passed to `Input.is_action_*`, `get_action_strength`, `get_axis`, or `get_vector` in a `.gd` file that is not defined in `[input]` (built-in `ui_*` actions are allowed; `InputMap.has_action` is ignored). |
 
 ### validate_registries (`gdcorrect validate-registries`) — the headline check
 For each directory in `registryDirs`, every `.tres`:

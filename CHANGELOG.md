@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Inline suppression comments: `# gdcorrect-ignore[rule]`, `# gdcorrect-ignore-file[rule]`, with `unused-suppression` reporting (#33)
 - `gdcorrect --format sarif` emits SARIF 2.1.0 for GitHub code scanning annotations (#34)
 - `gdcorrect --write-baseline` / `--baseline` so existing projects can gate CI on new findings only (#53)
+- `project-input-action-undefined`: flags input action names used in scripts that are not defined in `project.godot` (#50)
 
 ### Fixed
 
