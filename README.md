@@ -67,10 +67,11 @@ resources, signal hygiene, typed GDScript, preload vs load).
 
 ## CLI and CI
 
-`gdcorrect <command> <projectPath> [--format json|pretty]`, where `<command>` is
+`gdcorrect <command> <projectPath> [--format json|pretty|sarif]`, where `<command>` is
 `lint`, `validate-scenes`, `validate-project`, `validate-registries`, or `report`.
-JSON is the primary, machine-readable format. Exit codes: **0** clean, **1** on
-any error-severity finding, **2** on tool failure.
+JSON is the primary, machine-readable format; `sarif` emits SARIF 2.1.0 for
+GitHub code scanning. Exit codes: **0** clean, **1** on any error-severity
+finding, **2** on tool failure.
 
 ```yaml
 # .github/workflows/godot-correctness.yml
@@ -85,6 +86,24 @@ jobs:
         run: npx -y -p @tmhs/godot-correctness-mcp gdcorrect lint . --format json
       - name: Validate registries
         run: npx -y -p @tmhs/godot-correctness-mcp gdcorrect validate-registries . --format json
+```
+
+To show findings as pull-request annotations, upload SARIF to code scanning
+(run from the repository root so paths line up):
+
+```yaml
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: gdcorrect (SARIF)
+        run: npx -y -p @tmhs/godot-correctness-mcp gdcorrect report . --format sarif > gdcorrect.sarif
+        continue-on-error: true   # let the upload step run; code scanning gates the PR
+      - uses: github/codeql-action/upload-sarif@v3
+        with: { sarif_file: gdcorrect.sarif }
 ```
 
 ## Configuration

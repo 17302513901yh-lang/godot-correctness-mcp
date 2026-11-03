@@ -87,6 +87,7 @@ var hud := get_node("HUD")   # a comment-only directive applies to the next line
 ```bash
 gdcorrect lint <projectPath> --format json    # primary, machine-readable
 gdcorrect lint <projectPath> --format pretty  # human-readable
+gdcorrect lint <projectPath> --format sarif   # SARIF 2.1.0 for code scanning
 ```
 
 JSON output is a findings array (`file`, `line`, `col`, `ruleId`, `severity`,

@@ -3,10 +3,17 @@ import { isMainModule } from "./entry.js";
 import { lintProject } from "./lint/project.js";
 import type { Finding } from "./lint/types.js";
 import { requireDir } from "./project/walk.js";
+import { toSarif } from "./sarif.js";
 import { projectReport } from "./scenes/report.js";
 import { validateProjectConfig, validateRegistries, validateScenes } from "./scenes/validate.js";
+import { readVersion } from "./server-info.js";
 
-type Format = "json" | "pretty";
+const FORMATS = ["json", "pretty", "sarif"] as const;
+type Format = (typeof FORMATS)[number];
+
+function isFormat(s: string): s is Format {
+  return (FORMATS as readonly string[]).includes(s);
+}
 
 interface CommandResult {
   root: string;
@@ -92,6 +99,21 @@ function parseArgs(argv: string[]): { command?: string; root?: string; format: s
   return { command: positional[0], root: positional[1], format };
 }
 
+function render(res: CommandResult, format: Format): string {
+  switch (format) {
+    case "pretty":
+      return renderPretty(res);
+    case "sarif":
+      return JSON.stringify(
+        toSarif(res.findings, { projectRoot: res.root, version: readVersion() }),
+        null,
+        2,
+      );
+    case "json":
+      return JSON.stringify(res.payload, null, 2);
+  }
+}
+
 /** Exit code: 0 clean, 1 on any error-severity finding, 2 on tool failure. */
 export async function runCli(
   argv: string[],
@@ -100,16 +122,16 @@ export async function runCli(
 ): Promise<number> {
   const { command, root, format } = parseArgs(argv);
   if (!command || !COMMANDS.has(command) || !root) {
-    errOut(`Usage: gdcorrect <${[...COMMANDS].join("|")}> <projectPath> [--format json|pretty]`);
+    errOut(`Usage: gdcorrect <${[...COMMANDS].join("|")}> <projectPath> [--format ${FORMATS.join("|")}]`);
     return 2;
   }
-  if (format !== "json" && format !== "pretty") {
-    errOut(`Unknown format: ${format}. Use 'json' or 'pretty'.`);
+  if (!isFormat(format)) {
+    errOut(`Unknown format: ${format}. Use one of: ${FORMATS.join(", ")}.`);
     return 2;
   }
   try {
     const res = await runCommand(command, root);
-    log(format === "pretty" ? renderPretty(res) : JSON.stringify(res.payload, null, 2));
+    log(render(res, format));
     return countErrors(res.findings) > 0 ? 1 : 0;
   } catch (err) {
     errOut(`gdcorrect: ${err instanceof Error ? err.message : String(err)}`);
