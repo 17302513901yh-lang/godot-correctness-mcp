@@ -3,7 +3,7 @@
 **Offline static correctness MCP server for Godot 4.x GDScript projects**
 
 ![License: CC-BY-NC-ND-4.0](https://img.shields.io/badge/license-CC--BY--NC--ND--4.0-green)
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Version](https://img.shields.io/badge/version-0.1.1-blue)
 
 ---
 

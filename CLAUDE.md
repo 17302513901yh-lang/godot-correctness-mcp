@@ -8,7 +8,7 @@ This file provides guidance for Claude Code when working in this repository.
 
 godot-correctness-mcp -- Offline static correctness MCP server for Godot 4.x GDScript projects
 
-**Version:** 0.1.0
+**Version:** 0.1.1
 **License:** CC-BY-NC-ND-4.0
 **Author:** TMHSDigital
 
