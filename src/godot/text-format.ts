@@ -98,6 +98,16 @@ function isBalanced(s: string): boolean {
   return depth <= 0 && !inStr;
 }
 
+/** Strip and unescape a quoted property key; bare keys are returned as-is. */
+function unquoteKey(key: string): string {
+  if (!key.startsWith('"')) return key;
+  try {
+    return JSON.parse(key) as string;
+  } catch {
+    return key.slice(1, -1).replace(/\\(.)/g, "$1");
+  }
+}
+
 export function parseGodotFile(source: string): GodotFile {
   const lines = source.split(/\r?\n/);
   const file: GodotFile = { header: null, sections: [] };
@@ -126,9 +136,11 @@ export function parseGodotFile(source: string): GodotFile {
       continue;
     }
 
-    const propMatch = /^([\w./-]+)\s*=\s*(.*)$/.exec(line);
+    // Godot quotes keys containing spaces, `=`, quotes, brackets or non-ASCII
+    // characters (e.g. `"move left"={...}` under [input]); other keys are bare.
+    const propMatch = /^("(?:[^"\\]|\\.)*"|[^\s="]+)\s*=\s*(.*)$/.exec(line);
     if (propMatch && current) {
-      const key = propMatch[1];
+      const key = unquoteKey(propMatch[1]);
       let value = propMatch[2];
       const startLine = i + 1;
       // Continue multi-line values (arrays/dicts/constructors) until balanced.

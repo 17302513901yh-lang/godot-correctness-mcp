@@ -54,6 +54,27 @@ describe("resource reference parsing", () => {
   });
 });
 
+describe("quoted property keys", () => {
+  it("parses quoted and punctuated keys with multi-line values", () => {
+    const file = parseGodotFile(
+      '[input]\n\n"move left"={\n"deadzone": 0.5,\n"events": []\n}\n"sauté"={ "deadzone": 0.5, "events": [] }\n' +
+        'p1+jump={ "deadzone": 0.5, "events": [] }\n"say \\"hi\\""={ "deadzone": 0.5, "events": [] }\njump={ "events": [] }\n',
+    );
+    const input = file.sections[0]!;
+    expect(Object.keys(input.properties)).toEqual(["move left", "sauté", "p1+jump", 'say "hi"', "jump"]);
+    expect(input.properties["move left"]!.line).toBe(3);
+    expect(input.properties["jump"]!.line).toBe(10);
+  });
+
+  it("recognises quoted input actions in the action cross-check", () => {
+    const root = project("quoted-actions", {
+      "project.godot": '[input]\n\n"move left"={\n"deadzone": 0.5,\n"events": []\n}\n',
+      "p.gd": 'extends Node\n\nfunc _process(_d: float) -> void:\n\tif Input.is_action_just_pressed("move left"):\n\t\tpass\n',
+    });
+    expect(validateProjectConfig(root)).toEqual([]);
+  });
+});
+
 describe("parseGodotFile robustness", () => {
   const scene =
     '[gd_scene load_steps=2 format=3]\n\n[ext_resource type="Script" path="res://a.gd" id="1"]\n\n' +
