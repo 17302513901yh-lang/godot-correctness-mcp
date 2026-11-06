@@ -1,6 +1,5 @@
 import { join, relative } from "node:path";
-import { RULES_BY_ID } from "./lint/rules/index.js";
-import { UNUSED_SUPPRESSION_RULE } from "./lint/suppressions.js";
+import { RULE_INFO } from "./lint/catalog.js";
 import type { Finding, Severity } from "./lint/types.js";
 import { toPosix } from "./project/walk.js";
 
@@ -11,8 +10,7 @@ const LEVEL: Record<Severity, "error" | "warning" | "note"> = {
 };
 
 function ruleDescription(id: string): string {
-  if (id === UNUSED_SUPPRESSION_RULE) return "A gdcorrect-ignore comment that silenced nothing.";
-  return RULES_BY_ID.get(id)?.description ?? id;
+  return RULE_INFO.get(id)?.description ?? id;
 }
 
 /**

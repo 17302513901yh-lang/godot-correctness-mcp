@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { applySuppressions } from "../lint/suppressions.js";
 import type { Finding } from "../lint/types.js";
 import { walkProject } from "../project/walk.js";
 
@@ -42,8 +43,9 @@ export function checkInputActionUsage(
 ): Finding[] {
   const findings: Finding[] = [];
   for (const { full, rel } of walkProject(root, { exts: [".gd"], exclude })) {
-    const lines = readFileSync(full, "utf-8").split(/\r?\n/);
-    lines.forEach((rawLine, i) => {
+    const source = readFileSync(full, "utf-8");
+    const fileFindings: Finding[] = [];
+    source.split(/\r?\n/).forEach((rawLine, i) => {
       if (!rawLine.includes("action") && !rawLine.includes("get_axis") && !rawLine.includes("get_vector")) return;
       const cut = commentStart(rawLine);
       const code = cut === -1 ? rawLine : rawLine.slice(0, cut);
@@ -52,7 +54,7 @@ export function checkInputActionUsage(
         for (const arg of call[2]!.matchAll(STRING_ARG_RE)) {
           const name = arg[1]!;
           if (name === "" || definedActions.has(name) || isBuiltinAction(name)) continue;
-          findings.push({
+          fileFindings.push({
             file: rel,
             line: i + 1,
             col: argsStart + arg.index! + 1,
@@ -64,6 +66,7 @@ export function checkInputActionUsage(
         }
       }
     });
+    findings.push(...applySuppressions(rel, source, fileFindings, false));
   }
   return findings;
 }

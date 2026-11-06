@@ -51,6 +51,9 @@ defaults apply when the file is absent. See
 - `rules.<id>.enabled`: set `false` to disable a rule.
 - `rules.<id>.severity`: override to `error` / `warning` / `info`. A config
   override wins over a rule's per-finding severity.
+- `enabled` and `severity` apply to every rule id gdcorrect reports: the lint
+  rules here and the `scene-*`, `project-*`, and `registry-*` checks in
+  [scenes.md](scenes.md).
 - `rules.<id>.options`: per-rule options (currently read by `removed-api-usage`).
 - `registryDirs`, `pathPropertyPatterns`: used by the registry validator (see [scenes.md](scenes.md)).
 
@@ -103,9 +106,14 @@ var hud := get_node("HUD")   # a comment-only directive applies to the next line
   comment-only line it applies to the next line.
 - Omit the brackets (`# gdcorrect-ignore`) to silence every rule on that line.
 - `# gdcorrect-ignore-file[...]` applies to the whole file.
+- Directives also silence the checks that report findings in `.gd` files:
+  `scene-node-path-missing` and `project-input-action-undefined`.
 - A directive that silences nothing is reported as an `unused-suppression`
   `info` finding so stale comments get cleaned up. Configure it like any rule
-  (`"rules": { "unused-suppression": { "enabled": false } }`).
+  (`"rules": { "unused-suppression": { "enabled": false } }`). The lint pass
+  never reports a directive as unused when every rule it names is a
+  scene/project check or is disabled in config; name the rule explicitly
+  (rather than a bare `# gdcorrect-ignore`) when silencing those checks.
 
 ## CLI
 

@@ -6,6 +6,7 @@ import {
   severityOverride,
   type ResolvedConfig,
 } from "./config.js";
+import { SCENE_RULE_IDS } from "./catalog.js";
 import { DEFAULT_RULES } from "./rules/index.js";
 import { applySuppressions, UNUSED_SUPPRESSION_RULE } from "./suppressions.js";
 import type { Finding } from "./types.js";
@@ -33,6 +34,9 @@ export async function lintSource(
     source,
     findings,
     isRuleEnabled(config, UNUSED_SUPPRESSION_RULE),
+    // Scene/project checks (e.g. scene-node-path-missing) apply their own
+    // directives, and a disabled rule has nothing to suppress.
+    (id) => SCENE_RULE_IDS.has(id) || !isRuleEnabled(config, id),
   ).map((f) =>
     f.ruleId === UNUSED_SUPPRESSION_RULE
       ? { ...f, severity: severityOverride(config, f.ruleId) ?? f.severity }

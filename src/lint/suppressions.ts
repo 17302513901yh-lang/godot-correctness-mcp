@@ -49,13 +49,16 @@ function covers(d: Directive, f: Finding): boolean {
  * a code line applies to that line; on a comment-only line it applies to the
  * next line; `gdcorrect-ignore-file` applies to the whole file. Directives that
  * silenced nothing are returned as `unused-suppression` info findings when
- * `reportUnused` is true.
+ * `reportUnused` is true. A directive whose named rules are all out of scope
+ * for this pass (`outOfScope`, e.g. scene checks or rules disabled in config)
+ * is never reported as unused, since this pass could not have used it.
  */
 export function applySuppressions(
   file: string,
   source: string,
   findings: Finding[],
   reportUnused: boolean,
+  outOfScope: (ruleId: string) => boolean = () => false,
 ): Finding[] {
   if (!source.includes("gdcorrect-ignore")) return findings;
   const directives = parseDirectives(source);
@@ -70,6 +73,7 @@ export function applySuppressions(
   if (reportUnused) {
     for (const d of directives) {
       if (d.used) continue;
+      if (d.rules && [...d.rules].every(outOfScope)) continue;
       const which = d.rules ? [...d.rules].join(", ") : "all rules";
       kept.push({
         file,

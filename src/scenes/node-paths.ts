@@ -4,7 +4,7 @@ import type { Node } from "web-tree-sitter";
 import { calleeName, text, walk } from "../gdscript/ast.js";
 import { parseGDScript } from "../gdscript/parser.js";
 import { parseGodotFile, sectionsOfKind } from "../godot/text-format.js";
-import { loadConfig, type ResolvedConfig } from "../lint/config.js";
+import { applyRuleConfig, loadConfig, type ResolvedConfig } from "../lint/config.js";
 import { applySuppressions } from "../lint/suppressions.js";
 import type { Finding } from "../lint/types.js";
 import { walkProject } from "../project/walk.js";
@@ -127,5 +127,5 @@ export async function validateNodePaths(root: string, config?: ResolvedConfig): 
     }
     findings.push(...applySuppressions(rel, source, fileFindings, false));
   }
-  return findings;
+  return applyRuleConfig(findings, cfg);
 }

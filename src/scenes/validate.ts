@@ -8,7 +8,7 @@ import {
   type GodotFile,
   type GodotSection,
 } from "../godot/text-format.js";
-import { CONFIG_FILENAME, loadConfig, type ResolvedConfig } from "../lint/config.js";
+import { applyRuleConfig, CONFIG_FILENAME, loadConfig, type ResolvedConfig } from "../lint/config.js";
 import type { Finding, Severity } from "../lint/types.js";
 import { walkProject } from "../project/walk.js";
 import { checkInputActionUsage } from "./input-actions.js";
@@ -182,15 +182,16 @@ export function validateScenes(root: string, config?: ResolvedConfig): Finding[]
       ...checkConnections(rel, file, root),
     );
   }
-  return findings;
+  return applyRuleConfig(findings, cfg);
 }
 
 /** validate_project_config: main scene, autoloads, input map, and input action usage. */
 export function validateProjectConfig(root: string, config?: ResolvedConfig): Finding[] {
+  const cfg = config ?? loadConfig(root);
   const projectPath = join(root, "project.godot");
   if (!existsSync(projectPath)) {
-    return [finding("project.godot", 1, "project-missing", "error",
-      "No project.godot found at the project root.", "Point the tool at a Godot project root.")];
+    return applyRuleConfig([finding("project.godot", 1, "project-missing", "error",
+      "No project.godot found at the project root.", "Point the tool at a Godot project root.")], cfg);
   }
   const rel = "project.godot";
   const file = parseGodotFile(readFileSync(projectPath, "utf-8"));
@@ -233,7 +234,6 @@ export function validateProjectConfig(root: string, config?: ResolvedConfig): Fi
   }
 
   const input = file.sections.find((s) => s.kind === "input");
-  const cfg = config ?? loadConfig(root);
   findings.push(
     ...checkInputActionUsage(
       root,
@@ -250,7 +250,7 @@ export function validateProjectConfig(root: string, config?: ResolvedConfig): Fi
       }
     }
   }
-  return findings;
+  return applyRuleConfig(findings, cfg);
 }
 
 function readClassName(gdAbsPath: string): string | null {
@@ -338,5 +338,5 @@ export function validateRegistries(root: string, config?: ResolvedConfig): Regis
       }
     }
   }
-  return { findings, entries };
+  return { findings: applyRuleConfig(findings, cfg), entries };
 }

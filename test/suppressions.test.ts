@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import { resolveConfig } from "../src/lint/config.js";
 import { lintSource } from "../src/lint/engine.js";
+import { projectReport } from "../src/scenes/report.js";
 
 async function lint(source: string, raw = {}): Promise<string[]> {
   const findings = await lintSource("x.gd", source, resolveConfig(raw));
@@ -44,5 +48,71 @@ describe("inline suppressions", () => {
     expect(await lint(src, { rules: { "unused-suppression": { severity: "warning" } } })).toEqual([
       "unused-suppression@1:warning",
     ]);
+  });
+});
+
+describe("suppressions and rules config across scene/project checks", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "gdc-supp-"));
+  afterAll(() => rmSync(tmp, { recursive: true, force: true }));
+
+  function project(name: string, files: Record<string, string>): string {
+    const root = join(tmp, name);
+    for (const [rel, body] of Object.entries(files)) {
+      mkdirSync(dirname(join(root, rel)), { recursive: true });
+      writeFileSync(join(root, rel), body);
+    }
+    return root;
+  }
+
+  const scene =
+    '[gd_scene format=3]\n\n[ext_resource type="Script" path="res://main.gd" id="1"]\n\n' +
+    '[node name="Main" type="Node"]\nscript = ExtResource("1")\n';
+  const script =
+    "extends Node\n\n" +
+    "# gdcorrect-ignore[scene-node-path-missing]\n" +
+    "@onready var hud: Node = $RuntimeHUD\n\n" +
+    "func _process(_d: float) -> void:\n" +
+    '\tif Input.is_action_pressed("jmp"):  # gdcorrect-ignore[project-input-action-undefined]\n' +
+    "\t\tpass\n";
+  const files = { "project.godot": "[application]\n", "main.tscn": scene, "main.gd": script };
+  const ids = async (root: string): Promise<string[]> => {
+    const r = await projectReport(root);
+    return [...r.lint, ...r.scenes, ...r.project].map((f) => `${f.ruleId}@${f.line}:${f.severity}`);
+  };
+  // The same script without the two directives.
+  const plain =
+    "extends Node\n\n" +
+    "@onready var hud: Node = $RuntimeHUD\n\n" +
+    "func _process(_d: float) -> void:\n" +
+    '\tif Input.is_action_pressed("jmp"):\n' +
+    "\t\tpass\n";
+
+  it("documented non-lint suppressions work and are not reported as unused", async () => {
+    expect(await ids(project("docs-example", files))).toEqual([]);
+  });
+
+  it("without the directives both findings are reported", async () => {
+    const got = await ids(project("no-directives", { ...files, "main.gd": plain }));
+    expect(got).toContain("scene-node-path-missing@3:warning");
+    expect(got).toContain("project-input-action-undefined@6:warning");
+  });
+
+  it("rules config disables and re-severities scene and project rules", async () => {
+    const cfg = {
+      rules: {
+        "scene-node-path-missing": { enabled: false },
+        "project-input-action-undefined": { severity: "error" },
+      },
+    };
+    const got = await ids(
+      project("rules-cfg", { ...files, "main.gd": plain, "godot-correctness.config.json": JSON.stringify(cfg) }),
+    );
+    expect(got.filter((g) => g.startsWith("scene-node-path-missing"))).toEqual([]);
+    expect(got).toContain("project-input-action-undefined@6:error");
+  });
+
+  it("a directive for a config-disabled lint rule is not reported as unused", async () => {
+    const src = "var a = 1  # gdcorrect-ignore[untyped-declaration]\n";
+    expect(await lint(src, { rules: { "untyped-declaration": { enabled: false } } })).toEqual([]);
   });
 });

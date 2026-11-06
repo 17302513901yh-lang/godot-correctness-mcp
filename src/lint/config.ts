@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
-import type { Severity } from "./types.js";
+import type { Finding, Severity } from "./types.js";
 
 export const CONFIG_FILENAME = "godot-correctness.config.json";
 
@@ -100,6 +100,21 @@ export function isRuleEnabled(config: ResolvedConfig, ruleId: string): boolean {
 /** Config severity override for a rule, if any. */
 export function severityOverride(config: ResolvedConfig, ruleId: string): Severity | undefined {
   return config.rules[ruleId]?.severity;
+}
+
+/**
+ * Apply `rules.<id>.enabled` and `rules.<id>.severity` to findings from any
+ * checker. The lint pass applies these itself; the scene, project and registry
+ * checks run their findings through here.
+ */
+export function applyRuleConfig(findings: Finding[], config: ResolvedConfig): Finding[] {
+  const out: Finding[] = [];
+  for (const f of findings) {
+    if (!isRuleEnabled(config, f.ruleId)) continue;
+    const severity = severityOverride(config, f.ruleId);
+    out.push(severity ? { ...f, severity } : f);
+  }
+  return out;
 }
 
 /** Per-rule options from config. */
