@@ -29,7 +29,7 @@ export function changedSince(root: string, ref: string): string[] {
         .filter(Boolean);
     } catch (err) {
       const stderr = (err as { stderr?: Buffer | string }).stderr?.toString().trim();
-      throw new Error(`git ${args[0]} failed${stderr ? `: ${stderr}` : ""}`);
+      throw new Error(`git ${args[0]} failed${stderr ? `: ${stderr}` : ""}`, { cause: err });
     }
   };
   // --relative: paths relative to (and limited to) root when it is a subdirectory.

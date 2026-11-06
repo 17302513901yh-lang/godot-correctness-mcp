@@ -28,6 +28,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run typecheck
+      - run: npm run lint
       - name: Validate committed symbol DB artifacts (no Godot required)
         run: npm run validate:artifacts
       - run: npm test

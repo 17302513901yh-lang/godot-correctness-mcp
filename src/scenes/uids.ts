@@ -27,7 +27,7 @@ export function buildUidIndex(root: string, exclude: (rel: string) => boolean): 
         uid = IMPORT_UID_RE.exec(readFileSync(full, "utf-8"))?.[1];
         target = rel.slice(0, -".import".length);
       } else {
-        const head = readFileSync(full, "utf-8").slice(0, 512).replace(/^﻿/, "");
+        const head = readFileSync(full, "utf-8").slice(0, 512).replace(/^\uFEFF/, "");
         uid = HEADER_UID_RE.exec(head)?.[1];
       }
     } catch {

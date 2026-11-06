@@ -94,7 +94,9 @@ export function loadConfig(projectRoot: string): ResolvedConfig {
   try {
     raw = JSON.parse(readFileSync(path, "utf-8"));
   } catch (err) {
-    throw new Error(`Invalid ${CONFIG_FILENAME} at ${path}: ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(`Invalid ${CONFIG_FILENAME} at ${path}: ${err instanceof Error ? err.message : String(err)}`, {
+      cause: err,
+    });
   }
   const parsed = configSchema.safeParse(raw);
   if (!parsed.success) {

@@ -17,6 +17,7 @@ Maintainers commit directly to `main`; outside contributions always come in as p
 npm ci
 npm run build
 npm run typecheck
+npm run lint
 npm test
 ```
 
@@ -52,7 +53,7 @@ Maintainers bump the version in `package.json` (`npm version <patch|minor|major>
 
 ## Pull Request Process
 
-1. Ensure CI passes (it runs `npm run build`, `npm run typecheck`, `npm run validate:artifacts`, and `npm test` on Ubuntu and Windows)
+1. Ensure CI passes (it runs `npm run build`, `npm run typecheck`, `npm run lint`, `npm run validate:artifacts`, and `npm test` on Ubuntu and Windows)
 2. Update `CHANGELOG.md` if the change is user-facing
 3. Use a descriptive PR title following conventional commit format
 

@@ -1,4 +1,4 @@
-import { calleeName, findAll, walk } from "../../gdscript/ast.js";
+import { calleeName, walk } from "../../gdscript/ast.js";
 import type { Rule } from "../types.js";
 
 const PATH_FNS = new Set([

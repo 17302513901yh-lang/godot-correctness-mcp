@@ -37,4 +37,5 @@ godot-correctness-mcp -- Offline static correctness MCP server for Godot 4.x GDS
 npm run build
 npm test
 npm run typecheck
+npm run lint
 ```

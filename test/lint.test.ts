@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { isGrammarAvailable } from "../src/gdscript/parser.js";
 import { loadConfig, resolveConfig } from "../src/lint/config.js";
 import { runCli } from "../src/cli.js";

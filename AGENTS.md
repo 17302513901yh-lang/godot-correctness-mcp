@@ -41,6 +41,7 @@ This is an MCP server (plus the `gdcorrect` CLI) for offline static correctness 
 Builds, typechecks, and runs the test suite on Node 22 and 24, on Ubuntu and Windows:
 - TypeScript build (`npm run build`)
 - Typecheck of `src/`, `scripts/`, and `test/` (`npm run typecheck`)
+- ESLint with typescript-eslint, including type-aware async checks in `src/` (`npm run lint`)
 - Committed symbol DB validation (`npm run validate:artifacts`)
 - Test suite (`npm test`, vitest, offline)
 

@@ -1,5 +1,4 @@
 import type {
-  BuiltinClassDef,
   ClassDef,
   EnumDef,
   Method,

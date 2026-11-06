@@ -85,7 +85,7 @@ describe("parseGodotFile robustness", () => {
   });
 
   it("tolerates a UTF-8 BOM before the header", () => {
-    const f = parseGodotFile(`﻿${scene}`);
+    const f = parseGodotFile(`\uFEFF${scene}`);
     expect(f.sections.some((s) => s.kind === "ext_resource")).toBe(true);
   });
 
