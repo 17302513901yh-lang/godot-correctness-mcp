@@ -50,7 +50,12 @@ function runRules(file: string, root: Node, source: string, config: ResolvedConf
   const findings: Finding[] = [];
   for (const rule of DEFAULT_RULES) {
     if (!isRuleEnabled(config, rule.id)) continue;
-    const raws = rule.check({ root, source, options: ruleOptions(config, rule.id) });
+    const raws = rule.check({
+      root,
+      source,
+      options: ruleOptions(config, rule.id),
+      projectGodotVersion: config.projectGodotVersion,
+    });
     for (const raw of raws) {
       const severity = severityOverride(config, rule.id) ?? raw.severity ?? rule.defaultSeverity;
       const pos = raw.node.startPosition;

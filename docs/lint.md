@@ -19,7 +19,7 @@ exposed both as MCP tools (`lint_file`, `lint_project`) and as a CI-first CLI
 | `stringly-nodepath` | info | String-literal node path passed to `get_node()`/`NodePath()`/etc. (rename-fragile). |
 | `connect-without-disconnect` | info | `connect()` in `_ready()` with no `disconnect()` anywhere and no `CONNECT_ONE_SHOT`. |
 | `float-grid-equality` | info | `==`/`!=` where an operand is a float literal or `Vector2/3/4(...)` (precision). |
-| `removed-api-usage` | warning | **Opt-in** (set `targetVersion`). Engine API that was removed in the target Godot version, calls whose argument count becomes invalid, and overrides of engine virtuals that were removed or changed arity. See below. |
+| `removed-api-usage` | warning | Target version from `project.godot` `config/features` (or `targetVersion`). Engine API that was removed in the target Godot version, calls whose argument count becomes invalid, and overrides of engine virtuals that were removed or changed arity. See below. |
 
 Detection is deliberately conservative: for a CI gate, false positives are worse
 than misses. Only `error`-severity findings fail the CLI (exit 1).
@@ -69,14 +69,23 @@ the nearest ancestor directory that contains `godot-correctness.config.json` or
 
 ## Upgrading Godot: `removed-api-usage`
 
-Enable it by naming the version you are moving to (the source version defaults
-to the pinned version before it):
+By default the target is read from `project.godot`: the version in
+`[application] config/features=PackedStringArray("4.5", ...)`, mapped to the
+newest pinned symbol database that is not newer than it (a 4.6 project is checked
+against 4.5). `lint` output reports it as `godotVersion`. The source version
+defaults to the pinned version before the target, so a project on the oldest
+pinned version (4.4) gets no findings. To choose the versions yourself (for
+example before upgrading):
 
 ```json
 { "rules": { "removed-api-usage": { "options": { "targetVersion": "4.5" } } } }
 ```
 
-Options: `targetVersion` (required to enable) and `fromVersion` (optional).
+Options: `targetVersion` (one of the pinned versions: `4.4`, `4.5`) and
+`fromVersion` (another pinned version; it may be newer than the target to check
+a downgrade). Any other value is a config error (exit 2). Projects with no
+version in `config/features` and no `targetVersion` skip the rule; disable it
+with `"enabled": false`.
 Using the committed symbol databases, it flags:
 
 - members removed between the versions (methods, properties, signals,

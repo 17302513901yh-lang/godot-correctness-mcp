@@ -1,5 +1,6 @@
 import type { Node } from "web-tree-sitter";
 import { PINNED_GODOT_VERSIONS, type GodotVersion } from "../../capabilities.js";
+import { pinnedVersionFor } from "../../project/godot-version.js";
 import { findAll, text, walk } from "../../gdscript/ast.js";
 import { loadSymbolDb } from "../../symbols/db.js";
 import type { Method, SymbolDb } from "../../symbols/schema.js";
@@ -75,9 +76,13 @@ function previousVersion(target: GodotVersion): GodotVersion | null {
 
 /**
  * Flags uses of engine API that was removed, or whose call arity breaks,
- * between `fromVersion` and `targetVersion`. Off unless `targetVersion` is set:
+ * between `fromVersion` and `targetVersion`. `targetVersion` defaults to the
+ * newest pinned version not newer than the one project.godot declares
+ * (`config/features`); set it explicitly to override:
  *
  *   "rules": { "removed-api-usage": { "options": { "targetVersion": "4.5" } } }
+ *
+ * With no explicit target and no declared project version, the rule is off.
  *
  * Only statically certain receivers are checked: `self`/bare calls on a script
  * that extends a built-in class, `ClassName.member`, and variables or
@@ -90,14 +95,25 @@ export const removedApiUsage: Rule = {
   description: "Engine API removed (or call made invalid) in the target Godot version.",
   defaultSeverity: "warning",
   check(ctx) {
-    const target = ctx.options["targetVersion"];
-    if (target === undefined) return [];
+    const target = ctx.options["targetVersion"] ?? pinnedVersionFor(ctx.projectGodotVersion ?? null);
+    if (target === undefined || target === null) return [];
     if (typeof target !== "string" || !(PINNED_GODOT_VERSIONS as readonly string[]).includes(target)) {
       throw new Error(
         `removed-api-usage: options.targetVersion must be one of ${PINNED_GODOT_VERSIONS.join(", ")} (got ${JSON.stringify(target)}).`,
       );
     }
     const fromOpt = ctx.options["fromVersion"];
+    if (fromOpt !== undefined) {
+      // fromVersion may be newer than targetVersion (checking a downgrade), but
+      // it must be a pinned version other than the target.
+      const others = PINNED_GODOT_VERSIONS.filter((v) => v !== target);
+      if (typeof fromOpt !== "string" || !(others as readonly string[]).includes(fromOpt)) {
+        throw new Error(
+          `removed-api-usage: options.fromVersion must be one of ${others.join(", ") || "(none)"} ` +
+            `when targetVersion is ${target} (got ${JSON.stringify(fromOpt)}).`,
+        );
+      }
+    }
     const from = typeof fromOpt === "string" ? fromOpt : previousVersion(target as GodotVersion);
     if (!from || from === target) return [];
     const oldDb = loadSymbolDb(from);

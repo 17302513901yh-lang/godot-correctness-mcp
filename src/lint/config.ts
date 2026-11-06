@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
+import { readProjectGodotVersion } from "../project/godot-version.js";
 import { RULE_INFO } from "./catalog.js";
 import type { Finding, Severity } from "./types.js";
 
@@ -63,10 +64,19 @@ export interface ResolvedConfig {
   rules: Record<string, RuleConfig>;
   registryDirs: string[];
   pathPropertyPatterns: string[];
+  /**
+   * Godot version the project declares in project.godot
+   * (`config/features=PackedStringArray("4.5", ...)`), or null.
+   */
+  projectGodotVersion: string | null;
 }
 
-export function resolveConfig(raw: GodotCorrectnessConfig = {}): ResolvedConfig {
+export function resolveConfig(
+  raw: GodotCorrectnessConfig = {},
+  projectGodotVersion: string | null = null,
+): ResolvedConfig {
   return {
+    projectGodotVersion,
     include: raw.include ?? DEFAULT_INCLUDE,
     exclude: raw.exclude ?? DEFAULT_EXCLUDE,
     rules: raw.rules ?? {},
@@ -78,7 +88,8 @@ export function resolveConfig(raw: GodotCorrectnessConfig = {}): ResolvedConfig 
 /** Load and validate the config from a project root, or defaults when absent. */
 export function loadConfig(projectRoot: string): ResolvedConfig {
   const path = join(projectRoot, CONFIG_FILENAME);
-  if (!existsSync(path)) return resolveConfig();
+  const godotVersion = readProjectGodotVersion(projectRoot);
+  if (!existsSync(path)) return resolveConfig({}, godotVersion);
   let raw: unknown;
   try {
     raw = JSON.parse(readFileSync(path, "utf-8"));
@@ -92,7 +103,7 @@ export function loadConfig(projectRoot: string): ResolvedConfig {
       .join("; ");
     throw new Error(`Invalid ${CONFIG_FILENAME} at ${path}: ${issues}`);
   }
-  return resolveConfig(parsed.data);
+  return resolveConfig(parsed.data, godotVersion);
 }
 
 /**

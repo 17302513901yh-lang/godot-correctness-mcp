@@ -7,6 +7,8 @@ import type { Finding } from "./types.js";
 
 export interface ProjectLintResult {
   root: string;
+  /** Godot version declared in project.godot (also the default removed-api-usage target), or null. */
+  godotVersion: string | null;
   fileCount: number;
   findings: Finding[];
   errorCount: number;
@@ -39,6 +41,7 @@ export async function lintProject(
 
   return {
     root,
+    godotVersion: cfg.projectGodotVersion,
     fileCount: files.length,
     findings,
     errorCount: findings.filter((f) => f.severity === "error").length,

@@ -32,6 +32,8 @@ export interface RuleContext {
   source: string;
   /** Per-rule options merged from config. */
   options: Record<string, unknown>;
+  /** Godot version declared in the project's project.godot, if any. */
+  projectGodotVersion?: string | null;
 }
 
 export interface Rule {
