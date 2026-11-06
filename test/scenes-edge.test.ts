@@ -294,6 +294,20 @@ describe("project-input-action-undefined", () => {
     ]);
   });
 
+  it("ignores action names built by concatenation or formatting", () => {
+    const root = project("input-actions-dynamic", {
+      "project.godot": "[input]\n\np1_jump={\n\"events\": []\n}\np2_jump={\n\"events\": []\n}\n",
+      "p.gd":
+        "extends Node\n\nvar prefix := \"p1\"\n\nfunc _process(_d: float) -> void:\n" +
+        '\tif Input.is_action_pressed(prefix + "_jump"):\n\t\tpass\n' +
+        '\tif Input.is_action_pressed("p%d_jump" % 2):\n\t\tpass\n' +
+        '\tvar v := Input.get_vector("p1_jump", prefix + "_left", "p2_jump", "nope")\n',
+    });
+    expect(
+      validateProjectConfig(root).map((f) => `${f.line}:${f.col} ${f.message}`),
+    ).toEqual(['10:68 Input action "nope" is not defined in project.godot [input].']);
+  });
+
   it("respects exclude globs", () => {
     const root = project("input-actions-excluded", {
       "project.godot": PROJECT,
