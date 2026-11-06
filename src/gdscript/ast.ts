@@ -1,11 +1,55 @@
 import type { Node } from "web-tree-sitter";
 
-/** Depth-first walk over all named nodes (inclusive of the start node). */
+/**
+ * Depth-first (pre-order) walk over all named nodes, inclusive of the start
+ * node. Walking a whole tree (from its root) reuses the per-tree index, so the
+ * rules that scan the full file share one traversal.
+ */
 export function* walk(node: Node): Generator<Node> {
+  if (node.parent === null) {
+    yield* indexFor(node).all;
+    return;
+  }
+  yield* walkSubtree(node);
+}
+
+function* walkSubtree(node: Node): Generator<Node> {
   yield node;
   for (const child of node.namedChildren) {
-    if (child) yield* walk(child);
+    if (child) yield* walkSubtree(child);
   }
+}
+
+/** Same order as walk(), without generator overhead, for building indexes. */
+function collect(node: Node, out: Node[]): void {
+  out.push(node);
+  for (const child of node.namedChildren) if (child) collect(child, out);
+}
+
+/** Per-tree index of named nodes by type, built once in a single walk. */
+interface TreeIndex {
+  rootId: number;
+  /** Every named node, pre-order. */
+  all: Node[];
+  byType: Map<string, Node[]>;
+}
+
+const typeIndex = new WeakMap<object, TreeIndex>();
+
+function indexFor(root: Node): TreeIndex {
+  const hit = typeIndex.get(root.tree);
+  if (hit && hit.rootId === root.id) return hit;
+  const byType = new Map<string, Node[]>();
+  const all: Node[] = [];
+  collect(root, all);
+  for (const n of all) {
+    const list = byType.get(n.type);
+    if (list) list.push(n);
+    else byType.set(n.type, [n]);
+  }
+  const index = { rootId: root.id, all, byType };
+  typeIndex.set(root.tree, index);
+  return index;
 }
 
 /** Source text covered by a node. */
@@ -13,8 +57,13 @@ export function text(node: Node, source: string): string {
   return source.slice(node.startIndex, node.endIndex);
 }
 
-/** All named descendants of a given grammar type. */
+/**
+ * All named nodes of a grammar type in `root`'s subtree, in document order.
+ * On a tree's root node (what every lint rule passes) the result comes from a
+ * per-tree index, so N rules share one traversal instead of walking N times.
+ */
 export function findAll(root: Node, type: string): Node[] {
+  if (root.parent === null) return [...(indexFor(root).byType.get(type) ?? [])];
   const out: Node[] = [];
   for (const n of walk(root)) if (n.type === type) out.push(n);
   return out;
