@@ -45,6 +45,15 @@ describe("scene-node-parent-missing", () => {
       "scene-node-parent-missing@11",
     ]);
   });
+
+  it("accepts children under base-scene nodes in an inherited scene", () => {
+    const tscn =
+      '[gd_scene format=3]\n\n[ext_resource type="PackedScene" path="res://Base.tscn" id="1_b"]\n\n' +
+      '[node name="Derived" instance=ExtResource("1_b")]\n\n' +
+      '[node name="Extra" type="Node2D" parent="Sprite"]\n\n' +
+      '[node name="Deeper" type="Node2D" parent="Body/Arm"]\n';
+    expect(scan("inherited", { "Derived.tscn": tscn, "Base.tscn": "[gd_scene format=3]\n" })).toEqual([]);
+  });
 });
 
 describe("scene-connection-method-missing", () => {

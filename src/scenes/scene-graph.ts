@@ -58,9 +58,11 @@ export function nodeTree(file: GodotFile): Map<string, SceneNode> {
 /**
  * Whether `path` may legitimately live inside an instanced sub-scene (editable
  * children), which this file does not declare: true if any ancestor is an
- * instanced node.
+ * instanced node. In an inherited scene the root itself is instanced, so every
+ * base-scene node is undeclared and any parent path may be legitimate.
  */
 function underInstance(path: string, nodes: Map<string, SceneNode>): boolean {
+  if (nodes.get(".")?.instanced) return true;
   const parts = path.split("/");
   for (let i = parts.length - 1; i >= 1; i--) {
     if (nodes.get(parts.slice(0, i).join("/"))?.instanced) return true;
