@@ -193,7 +193,15 @@ export async function runCli(
 }
 
 if (isMainModule(import.meta.url)) {
-  runCli(process.argv.slice(2))
-    .then((code) => process.exit(code))
-    .catch(() => process.exit(2));
+  // Set exitCode and let the process end on its own: calling process.exit()
+  // right after web-tree-sitter has run can trip a libuv handle-closing
+  // assertion on Windows and exit 127 instead of 0/1/2.
+  runCli(process.argv.slice(2)).then(
+    (code) => {
+      process.exitCode = code;
+    },
+    () => {
+      process.exitCode = 2;
+    },
+  );
 }

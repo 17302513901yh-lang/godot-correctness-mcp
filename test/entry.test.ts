@@ -39,6 +39,33 @@ describe("isMainModule", () => {
   });
 });
 
+describe("built CLI exit codes", () => {
+  const cli = resolve("dist/cli.js");
+  const run = (...args: string[]) =>
+    spawnSync(process.execPath, [cli, ...args], { encoding: "utf-8" });
+
+  // Spawned directly (no symlink) so this also runs on Windows CI, where
+  // calling process.exit() after tree-sitter parsing used to exit 127.
+  it("exits 0 on a clean project after parsing scripts", (ctx) => {
+    if (!existsSync(cli)) ctx.skip();
+    const r = run("lint", resolve("test/fixtures/clean-project"));
+    expect(r.stderr).not.toContain("Assertion failed");
+    expect(r.status).toBe(0);
+  });
+
+  it("exits 1 when there are error findings", (ctx) => {
+    if (!existsSync(cli)) ctx.skip();
+    const r = run("lint", resolve("test/fixtures/lint-project"));
+    expect(r.stderr).not.toContain("Assertion failed");
+    expect(r.status).toBe(1);
+  });
+
+  it("exits 2 on a usage error", (ctx) => {
+    if (!existsSync(cli)) ctx.skip();
+    expect(run("bogus").status).toBe(2);
+  });
+});
+
 describe("built CLI via symlink", () => {
   const cli = resolve("dist/cli.js");
 
