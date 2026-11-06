@@ -10,7 +10,7 @@ exposed both as MCP tools (`lint_file`, `lint_project`) and as a CI-first CLI
 
 | Rule ID | Default | What it flags |
 |---------|---------|---------------|
-| `delta-misuse` | error | `velocity` scaled by `delta` (either operand order) in a function that calls `move_and_slide()` (double-scales; `move_and_slide()` already applies frame timing). |
+| `delta-misuse` | error | A plain `velocity = <speed> * delta` assignment (either operand order) in a function that calls `move_and_slide()` (double-scales; `move_and_slide()` already applies frame timing). Integrating an acceleration (`velocity += get_gravity() * delta`, `velocity.y += ...`), damping from the current velocity, and `* delta` inside call arguments (`move_toward`, `lerp`) are not flagged. |
 | `delta-misuse` | info | `position`/`rotation` mutated in `_process`/`_physics_process` with no `delta` factor (frame-rate dependent). Same rule id, softer sub-pattern. |
 | `get-node-in-process` | warning | `$` / `get_node()` lookups inside `_process`/`_physics_process` (runs every frame). |
 | `missing-onready` | warning | Class-level node-path member initialized without `@onready`. |

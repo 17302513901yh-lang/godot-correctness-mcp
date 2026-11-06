@@ -58,6 +58,28 @@ describe("near-miss negatives", () => {
         "func _physics_process(_delta: float) -> void:\n\tvelocity = Vector2.RIGHT * SPEED\n\tmove_and_slide()\n",
     ],
     [
+      // Godot's stock "CharacterBody2D: Basic Movement" template.
+      "delta-misuse",
+      "extends CharacterBody2D\n\nconst SPEED = 300.0\nconst JUMP_VELOCITY = -400.0\n\n" +
+        "func _physics_process(delta: float) -> void:\n\tif not is_on_floor():\n\t\tvelocity += get_gravity() * delta\n" +
+        "\tif Input.is_action_just_pressed(\"ui_accept\") and is_on_floor():\n\t\tvelocity.y = JUMP_VELOCITY\n" +
+        "\tvar direction := Input.get_axis(\"ui_left\", \"ui_right\")\n\tif direction:\n\t\tvelocity.x = direction * SPEED\n" +
+        "\telse:\n\t\tvelocity.x = move_toward(velocity.x, 0, SPEED)\n\tmove_and_slide()\n",
+    ],
+    [
+      // Stock CharacterBody3D template gravity line.
+      "delta-misuse",
+      "extends CharacterBody3D\n\nfunc _physics_process(delta: float) -> void:\n" +
+        "\tif not is_on_floor():\n\t\tvelocity += get_gravity() * delta\n\tmove_and_slide()\n",
+    ],
+    [
+      "delta-misuse",
+      "extends CharacterBody2D\n\nconst G := 980.0\nconst FRICTION := 600.0\n\n" +
+        "func _physics_process(delta: float) -> void:\n\tvelocity.y += G * delta\n\tvelocity -= velocity * 0.1 * delta\n" +
+        "\tvelocity.x = move_toward(velocity.x, 0, FRICTION * delta)\n" +
+        "\tvelocity = velocity.lerp(Vector2.ZERO, 5.0 * delta)\n\tmove_and_slide()\n",
+    ],
+    [
       "float-grid-equality",
       "extends Node\n\nfunc f(x: float, n: int) -> bool:\n\tif is_equal_approx(x, 0.5):\n\t\treturn true\n\treturn n == 5\n",
     ],
@@ -70,6 +92,23 @@ describe("near-miss negatives", () => {
       expect(hits).toEqual([]);
     });
   }
+});
+
+describe("delta-misuse true positives", () => {
+  const body = (line: string) =>
+    `extends CharacterBody2D\n\nconst SPEED := 300.0\n\nfunc _physics_process(delta: float) -> void:\n\tvar dir := Vector2.RIGHT\n\t${line}\n\tmove_and_slide()\n`;
+  for (const line of ["velocity = dir * SPEED * delta", "self.velocity = dir * delta", "velocity = delta * dir * SPEED"]) {
+    it(`flags ${line}`, async () => {
+      expect((await lint(body(line))).filter((f) => f.startsWith("delta-misuse@"))).toEqual([
+        "delta-misuse@7:2:error",
+      ]);
+    });
+  }
+
+  it("is quiet without move_and_slide()", async () => {
+    const src = "extends Node2D\n\nfunc _physics_process(delta: float) -> void:\n\tvar velocity := Vector2.RIGHT * 10.0 * delta\n";
+    expect((await lint(src)).filter((f) => f.startsWith("delta-misuse@"))).toEqual([]);
+  });
 });
 
 describe("robust input", () => {

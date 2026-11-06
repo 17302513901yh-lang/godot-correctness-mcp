@@ -27,15 +27,33 @@ function targetName(left: Node, source: string): string | null {
   return null;
 }
 
-/** RHS contains a `*` with `delta` as a direct operand (either order). */
+/** True for `velocity` or `self.velocity` itself (not a component like `velocity.x`). */
+function isWholeVelocity(left: Node, source: string): boolean {
+  if (left.type === "identifier") return text(left, source) === "velocity";
+  if (left.type === "attribute" && left.namedChildCount === 2) {
+    const [a, b] = [left.namedChild(0), left.namedChild(1)];
+    return (
+      a?.type === "identifier" && text(a, source) === "self" &&
+      b?.type === "identifier" && text(b, source) === "velocity"
+    );
+  }
+  return false;
+}
+
+/**
+ * RHS contains a `*` with `delta` as a direct operand (either order), outside
+ * of call arguments: `move_toward(v, 0, ACCEL * delta)` and
+ * `v.lerp(t, 5.0 * delta)` scale a step size, not the velocity itself.
+ */
 function multipliesByDelta(node: Node, source: string): boolean {
-  for (const b of walk(node)) {
-    if (b.type !== "binary_operator" || operatorOf(b, source) !== "*") continue;
-    const l = b.childForFieldName("left");
-    const r = b.childForFieldName("right");
+  if (node.type === "arguments") return false;
+  if (node.type === "binary_operator" && operatorOf(node, source) === "*") {
     const isDelta = (n: Node | null): boolean =>
       !!n && n.type === "identifier" && text(n, source) === "delta";
-    if (isDelta(l) || isDelta(r)) return true;
+    if (isDelta(node.childForFieldName("left")) || isDelta(node.childForFieldName("right"))) return true;
+  }
+  for (const child of node.namedChildren) {
+    if (child && multipliesByDelta(child, source)) return true;
   }
   return false;
 }
@@ -61,7 +79,16 @@ export const deltaMisuse: Rule = {
         if (!left || !right) continue;
         const target = targetName(left, ctx.source);
 
-        if (callsMove && target === "velocity" && multipliesByDelta(right, ctx.source)) {
+        // Only a plain `velocity = <speed> * delta` double-scales. Integrating an
+        // acceleration (`velocity += gravity * delta`, `velocity.y += ...`) or
+        // damping from the current velocity is the correct, documented pattern.
+        if (
+          callsMove &&
+          stmt.type === "assignment" &&
+          isWholeVelocity(left, ctx.source) &&
+          !containsIdentifier(right, "velocity", ctx.source) &&
+          multipliesByDelta(right, ctx.source)
+        ) {
           out.push({
             node: stmt,
             severity: "error",
