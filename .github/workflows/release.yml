@@ -1,13 +1,16 @@
 name: Release
 
+# Runs after CI finishes on main, and only tags/releases when CI passed, so a
+# version bump that fails typecheck or a Windows leg is never tagged or
+# published. Manual dispatch releases the current main head.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch: {}
 
-permissions:
-  contents: write
-  actions: write
+permissions: {}
 
 concurrency:
   group: release
@@ -16,7 +19,13 @@ concurrency:
 jobs:
   tag-and-release:
     name: Tag and release
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
     steps:
       # The default GITHUB_TOKEN (contents: write) pushes tags and creates the
       # release. CI never writes to main; bump the version in package.json
@@ -24,21 +33,29 @@ jobs:
       # so this job dispatches it explicitly afterward.
       - uses: actions/checkout@v7
         with:
+          # Tag exactly the commit CI tested.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
 
       - name: Read version from package.json
         id: ver
         run: |
           v=$(node -p "require('./package.json').version")
+          if ! [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::package.json version '$v' is not valid semver"
+            exit 1
+          fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "package.json version: $v"
 
       - name: Check if tag already exists
         id: check
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          if git rev-parse "v${{ steps.ver.outputs.version }}" >/dev/null 2>&1; then
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Tag v${{ steps.ver.outputs.version }} exists; nothing to release."
+            echo "Tag v$VERSION exists; nothing to release."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
@@ -47,9 +64,10 @@ jobs:
         if: steps.check.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -euo pipefail
-          v="${{ steps.ver.outputs.version }}"
+          v="$VERSION"
           IFS='.' read -r major minor _patch <<< "$v"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

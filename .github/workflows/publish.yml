@@ -11,6 +11,9 @@ permissions:
 
 jobs:
   publish:
+    # Only publish from main (release.yml dispatches with --ref main) or from a
+    # published release, never from a dispatch on another branch.
+    if: github.event_name == 'release' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -19,9 +22,14 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
           cache: npm
-      - run: npm install -g npm@latest
+      # Trusted publishing needs npm >= 11.5.1; pin the major so a future npm
+      # release cannot break publishing without a code change.
+      - run: npm install -g npm@^11.5.1
       - run: npm ci
       - run: npm run build
+      # Same gates as CI.
+      - run: npm run typecheck
+      - run: npm run validate:artifacts
       - run: npm test
 
       - name: Check if this version is already published

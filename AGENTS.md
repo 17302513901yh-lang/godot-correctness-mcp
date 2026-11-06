@@ -44,13 +44,13 @@ Builds, typechecks, and runs the test suite on Node 22 and 24, on Ubuntu and Win
 - Committed symbol DB validation (`npm run validate:artifacts`)
 - Test suite (`npm test`, vitest, offline)
 
-### `release.yml` (runs on push to main)
+### `release.yml` (runs after CI passes on main)
 
-Reads the version from `package.json` and, if there is no matching tag yet, pushes the `v<version>` tag (plus the floating `vMAJOR` and `vMAJOR.MINOR` tags), creates a GitHub Release, and dispatches `publish.yml`. It only pushes tags and never writes to `main`.
+Triggered by a successful CI run for a push to `main` (or manually). It checks out the exact commit CI tested, reads the version from `package.json` and, if there is no matching tag yet, pushes the `v<version>` tag (plus the floating `vMAJOR` and `vMAJOR.MINOR` tags), creates a GitHub Release, and dispatches `publish.yml`. It only pushes tags and never writes to `main`.
 
 ### `publish.yml` (runs on workflow_dispatch)
 
-Publishes the package to npm via trusted publishing (OIDC, no token). A release created by `release.yml` uses `GITHUB_TOKEN`, which cannot trigger other workflows, so `release.yml` dispatches `publish.yml` explicitly.
+Publishes the package to npm via trusted publishing (OIDC, no token), after running the same build, typecheck, artifact validation and test gates as CI. It only runs from `main` or a published release. A release created by `release.yml` uses `GITHUB_TOKEN`, which cannot trigger other workflows, so `release.yml` dispatches `publish.yml` explicitly.
 
 ### `drift-check.yml`
 
