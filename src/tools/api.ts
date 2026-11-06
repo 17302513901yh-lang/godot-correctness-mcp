@@ -68,7 +68,7 @@ export function registerApiTools(server: McpServer): void {
           const suggestions = lookupSymbol(db, className, { kind: "class" }).suggestions ?? [];
           return fail(
             `Class '${className}' not found in Godot ${version}.` +
-              (suggestions.length ? ` Did you mean: ${suggestions.map((s) => s.name).join(", ")}?` : ""),
+              (suggestions.length ? ` Did you mean: ${[...new Set(suggestions.map((s) => s.name))].join(", ")}?` : ""),
           );
         }
         return { version, ...summary };

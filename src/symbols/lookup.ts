@@ -184,6 +184,19 @@ export function lookupSymbol(
         (e) => e.owner?.toLowerCase() === ownerLc && e.name.toLowerCase() === memberLc,
       );
     }
+    // Inherited members: `Sprite2D.queue_free` is declared on Node.
+    if (candidates.length === 0) {
+      const memberLc = member.toLowerCase();
+      for (const ancestor of ancestorsOf(db, owner)) {
+        const found = index.filter(
+          (e) => e.owner === ancestor && e.name.toLowerCase() === memberLc,
+        );
+        if (found.length > 0) {
+          candidates = found;
+          break;
+        }
+      }
+    }
   } else {
     candidates = index.filter((e) => e.name === query);
     if (candidates.length === 0) {
@@ -198,9 +211,10 @@ export function lookupSymbol(
     return { query, matches: candidates.map(toMatch) };
   }
 
-  // Fuzzy fallback on the last path segment.
+  // Fuzzy fallback on the last path segment, restricted to the requested kind.
   const needle = (dot > 0 ? query.slice(dot + 1) : query).toLowerCase();
   const scored = index
+    .filter((e) => !opts.kind || e.kind === opts.kind)
     .map((e) => ({ e, d: levenshtein(needle, e.name.toLowerCase()) }))
     .filter(({ d, e }) => d <= Math.max(2, Math.floor(e.name.length / 3)))
     .sort((x, y) => x.d - y.d);
@@ -221,8 +235,23 @@ export function lookupSymbol(
 // Class summary
 // ---------------------------------------------------------------------------
 
+/** Ancestors of a class (nearest first), resolving the name case-insensitively. */
+function ancestorsOf(db: SymbolDb, className: string): string[] {
+  const start = findClass(db, className);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  let cur = start?.def.inherits ?? null;
+  while (cur && !seen.has(cur) && Object.hasOwn(db.classes, cur)) {
+    seen.add(cur);
+    out.push(cur);
+    cur = db.classes[cur]!.inherits;
+  }
+  return out;
+}
+
 function findClass(db: SymbolDb, name: string): { name: string; def: ClassDef } | undefined {
-  if (db.classes[name]) return { name, def: db.classes[name] };
+  // hasOwn: names like "constructor" or "toString" must not hit Object.prototype.
+  if (Object.hasOwn(db.classes, name)) return { name, def: db.classes[name]! };
   const lc = name.toLowerCase();
   const key = Object.keys(db.classes).find((k) => k.toLowerCase() === lc);
   return key ? { name: key, def: db.classes[key] } : undefined;
@@ -377,6 +406,8 @@ export interface SymbolDiff {
   fromLabel: string;
   toLabel: string;
   entries: SymbolDiffEntry[];
+  /** Closest names when the query matches nothing in either version. */
+  suggestions?: { name: string; kind: SymbolKind; owner: string | null }[];
 }
 
 function status(from: string | null, to: string | null): SymbolDiffEntry["status"] {
@@ -391,8 +422,10 @@ function status(from: string | null, to: string | null): SymbolDiffEntry["status
  * either version, matched by owner+name.
  */
 export function diffSymbol(from: SymbolDb, to: SymbolDb, query: string): SymbolDiff {
-  const fromMatches = lookupSymbol(from, query).matches;
-  const toMatches = lookupSymbol(to, query).matches;
+  const fromLookup = lookupSymbol(from, query);
+  const toLookup = lookupSymbol(to, query);
+  const fromMatches = fromLookup.matches;
+  const toMatches = toLookup.matches;
   const byKey = new Map<string, { owner: string | null; kind: SymbolKind; name: string; from?: string; to?: string }>();
 
   const key = (m: SymbolMatch): string => `${m.owner ?? ""}::${m.kind}::${m.name}`;
@@ -412,5 +445,16 @@ export function diffSymbol(from: SymbolDb, to: SymbolDb, query: string): SymbolD
     status: status(e.from ?? null, e.to ?? null),
   }));
 
-  return { query, fromLabel: from.meta.versionLabel, toLabel: to.meta.versionLabel, entries };
+  const result: SymbolDiff = { query, fromLabel: from.meta.versionLabel, toLabel: to.meta.versionLabel, entries };
+  if (entries.length === 0) {
+    const seen = new Set<string>();
+    result.suggestions = [...(toLookup.suggestions ?? []), ...(fromLookup.suggestions ?? [])]
+      .filter((s) => {
+        const k = `${s.owner ?? ""}.${s.name}.${s.kind}`;
+        return !seen.has(k) && seen.add(k);
+      })
+      .map(({ name, kind, owner }) => ({ name, kind, owner }))
+      .slice(0, 8);
+  }
+  return result;
 }

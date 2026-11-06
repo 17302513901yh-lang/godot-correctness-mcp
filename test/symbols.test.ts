@@ -131,3 +131,36 @@ describe("committed artifacts (real DBs)", () => {
     expect(d.presence.inTo).toBe(true);
   });
 });
+
+describe("lookup edge cases", () => {
+  it("resolves inherited members in Owner.member queries", () => {
+    const r = lookupSymbol(db45, "CharacterBody2D.queue_free");
+    expect(r.matches).toHaveLength(1);
+    expect(r.matches[0]).toMatchObject({ kind: "method", owner: "Node", name: "queue_free" });
+    expect(lookupSymbol(db45, "characterbody2d.get_class").matches[0]).toMatchObject({ owner: "Object" });
+  });
+
+  it("restricts fuzzy suggestions to the requested kind", () => {
+    const r = lookupSymbol(db45, "CharacterBody", { kind: "class" });
+    expect(r.matches).toEqual([]);
+    expect(r.suggestions?.length).toBeGreaterThan(0);
+    expect(r.suggestions?.every((s) => s.kind === "class")).toBe(true);
+    expect(lookupSymbol(db45, "get_childs", { kind: "class" }).suggestions).toEqual([]);
+  });
+
+  it("treats Object.prototype names as unknown classes", () => {
+    for (const name of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+      expect(classSummary(db45, name)).toBeUndefined();
+    }
+  });
+
+  it("api diff returns suggestions for a typo", () => {
+    const d = diffSymbol(db44, db45, "move_and_slid");
+    expect(d.entries).toEqual([]);
+    expect(d.suggestions?.[0]).toMatchObject({ name: "move_and_slide", kind: "method" });
+  });
+
+  it("does not throw on degenerate queries", () => {
+    for (const q of ["", "Node.", ".velocity", "."]) expect(() => lookupSymbol(db45, q)).not.toThrow();
+  });
+});
