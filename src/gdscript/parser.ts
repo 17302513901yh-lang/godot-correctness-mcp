@@ -1,17 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { Language, Parser, type Tree } from "web-tree-sitter";
-
-// dist/gdscript/parser.js and src/gdscript/parser.ts both sit two levels below
-// the package root, so the committed grammar resolves the same either way.
-const wasmPath = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-  "data",
-  "tree-sitter-gdscript.wasm",
-);
+import { GRAMMAR_WASM_PATH as wasmPath } from "../package-paths.js";
 
 /** Whether the committed GDScript grammar WASM is present. */
 export function isGrammarAvailable(): boolean {

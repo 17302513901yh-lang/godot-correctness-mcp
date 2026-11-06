@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { readBaseline } from "../src/baseline.js";
 import { runCli } from "../src/cli.js";
 
 const tmp = mkdtempSync(join(tmpdir(), "gdc-baseline-"));
@@ -75,5 +76,17 @@ describe("baseline", () => {
     writeFileSync(baseline, "{}");
     expect(await runCli(["lint", root, "--baseline", baseline], noop, noop)).toBe(2);
     expect(await runCli(["lint", root, "--baseline", baseline, "--write-baseline", baseline], noop, noop)).toBe(2);
+  });
+});
+
+describe("baseline file validation", () => {
+  it.each([
+    ["missing count", { version: 1, entries: [{ ruleId: "r", file: "a.gd", fingerprint: "x" }] }, "entries.0.count"],
+    ["non-numeric count", { version: 1, entries: [{ ruleId: "r", file: "a.gd", fingerprint: "x", count: "2" }] }, "entries.0.count"],
+    ["wrong version", { version: 2, entries: [] }, "version"],
+  ])("rejects a baseline with %s", (_name, body, where) => {
+    const path = join(tmp, `invalid-${where.replace(/\W/g, "")}-${Math.random()}.json`);
+    writeFileSync(path, JSON.stringify(body));
+    expect(() => readBaseline(path)).toThrow(where);
   });
 });

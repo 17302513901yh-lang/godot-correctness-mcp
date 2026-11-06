@@ -1,19 +1,14 @@
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 import { PINNED_GODOT_VERSIONS } from "../capabilities.js";
+import { symbolDbPath } from "../package-paths.js";
 import { parseSymbolDb, type SymbolDb } from "./schema.js";
-
-// dist/symbols/db.js and src/symbols/db.ts both sit two levels below the
-// package root, so data/ resolves the same compiled or via tsx/vitest.
-const dataDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "data");
 
 const cache = new Map<string, SymbolDb>();
 
 /** Path to the committed gzipped symbol DB for a version label ("4.4"/"4.5"). */
 export function dbPath(label: string): string {
-  return join(dataDir, `godot-${label}.symbols.json.gz`);
+  return symbolDbPath(label);
 }
 
 /** Whether a symbol DB artifact is present for the given version label. */

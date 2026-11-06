@@ -1,6 +1,5 @@
 import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { GRAMMAR_WASM_PATH, symbolDbPath } from "./package-paths.js";
 
 /**
  * Godot minor versions this server carries symbol data for. Deliberately
@@ -24,16 +23,12 @@ export interface PillarAvailability {
   sceneResourceAnalysis: boolean;
 }
 
-// dist/capabilities.js and src/capabilities.ts both sit one level below the
-// package root, so data/ resolves the same whether running compiled or via tsx.
-const dataDir = join(dirname(fileURLToPath(import.meta.url)), "..", "data");
-
 /** Report which pillars are currently usable based on committed artifacts. */
 export function pillarAvailability(): PillarAvailability {
-  const apiSymbols = PINNED_GODOT_VERSIONS.every((v) =>
-    existsSync(join(dataDir, `godot-${v}.symbols.json.gz`)),
-  );
-  const gdscriptLint = existsSync(join(dataDir, "tree-sitter-gdscript.wasm"));
+  // The API tools work with any pinned version that has a DB, so the pillar
+  // is available when at least one does (matching availableVersions()).
+  const apiSymbols = PINNED_GODOT_VERSIONS.some((v) => existsSync(symbolDbPath(v)));
+  const gdscriptLint = existsSync(GRAMMAR_WASM_PATH);
   return {
     gdscriptLint,
     apiSymbols,

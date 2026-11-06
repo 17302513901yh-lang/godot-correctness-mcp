@@ -1,11 +1,9 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { packagePath } from "../package-paths.js";
 
-// dist/resources/skills.js and src/resources/skills.ts both sit two levels
-// below the package root, so skills/ resolves the same either way.
-const skillsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "skills");
+const skillsDir = packagePath("skills");
 
 export interface SkillEntry {
   name: string;

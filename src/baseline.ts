@@ -1,7 +1,20 @@
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { z } from "zod";
 import type { Finding } from "./lint/types.js";
+
+const baselineSchema = z.object({
+  version: z.literal(1),
+  entries: z.array(
+    z.object({
+      ruleId: z.string(),
+      file: z.string(),
+      fingerprint: z.string(),
+      count: z.number().int().positive(),
+    }),
+  ),
+});
 
 /**
  * Baseline files let an existing project adopt the CI gate: record today's
@@ -96,11 +109,15 @@ export function readBaseline(path: string): BaselineFile {
   } catch (err) {
     throw new Error(`Cannot read baseline ${path}: ${err instanceof Error ? err.message : String(err)}`);
   }
-  const b = raw as Partial<BaselineFile>;
-  if (b?.version !== 1 || !Array.isArray(b.entries)) {
-    throw new Error(`Baseline ${path} is not a gdcorrect baseline (expected { "version": 1, "entries": [...] }).`);
+  const parsed = baselineSchema.safeParse(raw);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const where = issue && issue.path.length ? ` at ${issue.path.join(".")}` : "";
+    throw new Error(
+      `Baseline ${path} is not a valid gdcorrect baseline (expected { "version": 1, "entries": [...] })${where}: ${issue?.message ?? "invalid"}.`,
+    );
   }
-  return b as BaselineFile;
+  return parsed.data;
 }
 
 export function writeBaseline(path: string, baseline: BaselineFile): void {
