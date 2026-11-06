@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { sectionsOfKind, type GodotFile, type GodotSection } from "../godot/text-format.js";
 import type { Finding } from "../lint/types.js";
 import { availableVersions, loadSymbolDb } from "../symbols/db.js";
@@ -96,9 +96,18 @@ function newestDb(): SymbolDb | null {
   return cachedDb;
 }
 
+const builtinCache = new WeakMap<SymbolDb, Map<string, Set<string> | null>>();
+
 /** Method names on a built-in class and its ancestors, or null if it is not a built-in class. */
 function builtinMethods(db: SymbolDb, className: string): Set<string> | null {
-  if (!db.classes[className]) return null;
+  let perDb = builtinCache.get(db);
+  if (!perDb) builtinCache.set(db, (perDb = new Map()));
+  if (!perDb.has(className)) perDb.set(className, computeBuiltinMethods(db, className));
+  return perDb.get(className)!;
+}
+
+function computeBuiltinMethods(db: SymbolDb, className: string): Set<string> | null {
+  if (!Object.hasOwn(db.classes, className)) return null;
   const names = new Set<string>();
   let cur: string | null = className;
   const seen = new Set<string>();
@@ -110,6 +119,46 @@ function builtinMethods(db: SymbolDb, className: string): Set<string> | null {
     cur = def.inherits;
   }
   return names;
+}
+
+interface ScriptInfo {
+  /** Built-in or user class named by a bare `extends X`, or null. */
+  ext: string | null;
+  /** Names of functions declared in the script. */
+  funcs: Set<string>;
+}
+
+const EXTENDS_LINE = /^[ \t]*extends[ \t]+([A-Za-z_]\w*)[ \t]*(?:#.*)?$/;
+// Leading annotations are allowed on the same line: `@rpc("any_peer") func f():`.
+const FUNC_LINE = /^[ \t]*(?:@\w+(?:\([^)\n]*\))?[ \t]*)*(?:static[ \t]+)?func[ \t]+([A-Za-z_]\w*)[ \t]*\(/;
+
+/** Scan a script line by line (no whole-file multiline regexes). */
+export function scanScript(src: string): ScriptInfo {
+  let ext: string | null = null;
+  const funcs = new Set<string>();
+  for (const line of src.split(/\r?\n/)) {
+    const f = FUNC_LINE.exec(line);
+    if (f) funcs.add(f[1]!);
+    else if (ext === null) ext = EXTENDS_LINE.exec(line)?.[1] ?? null;
+  }
+  return { ext, funcs };
+}
+
+const scriptCache = new Map<string, { mtimeMs: number; size: number; info: ScriptInfo }>();
+
+/** Cached per path and invalidated on change, so each script is read once per run. */
+function scriptInfo(abs: string): ScriptInfo | null {
+  let st;
+  try {
+    st = statSync(abs);
+  } catch {
+    return null;
+  }
+  const hit = scriptCache.get(abs);
+  if (hit && hit.mtimeMs === st.mtimeMs && hit.size === st.size) return hit.info;
+  const info = scanScript(readFileSync(abs, "utf-8"));
+  scriptCache.set(abs, { mtimeMs: st.mtimeMs, size: st.size, info });
+  return info;
 }
 
 /**
@@ -140,15 +189,14 @@ export function checkConnections(rel: string, file: GodotFile, root: string): Fi
     if (script?.kind !== "extResource" || !script.ref) continue;
     const resPath = extPaths.get(script.ref);
     const abs = resPath ? resolveResPath(root, resPath) : null;
-    if (!abs || !existsSync(abs)) continue; // missing scripts are reported elsewhere
+    const info = abs ? scriptInfo(abs) : null;
+    if (!info) continue; // missing scripts are reported elsewhere
 
-    const src = readFileSync(abs, "utf-8");
-    const ext = /^\s*extends\s+([A-Za-z_]\w*)\s*$/m.exec(src)?.[1];
+    const ext = info.ext;
     if (!ext) continue; // path-based or missing extends: chain unknown
     const engine = builtinMethods(db, ext);
     if (!engine) continue; // extends a user class: chain unknown
-    const own = new RegExp(`^\\s*(?:static\\s+)?func\\s+${method.replace(/\W/g, "\\$&")}\\s*\\(`, "m");
-    if (own.test(src) || engine.has(method)) continue;
+    if (info.funcs.has(method) || engine.has(method)) continue;
     out.push(
       finding(rel, c.line, "scene-connection-method-missing",
         `Connection "${c.attributes["signal"]?.string ?? "?"}" targets ${method}() on "${to}", ` +

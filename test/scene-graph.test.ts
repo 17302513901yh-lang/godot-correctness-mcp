@@ -78,6 +78,25 @@ describe("scene-connection-method-missing", () => {
     ]);
   });
 
+  it("accepts methods declared with same-line annotations", () => {
+    for (const decl of [
+      '@rpc("any_peer") func _on_button_pressed() -> void:',
+      '@warning_ignore("unused_parameter") @rpc func _on_button_pressed() -> void:',
+      "@rpc static func _on_button_pressed() -> void:",
+    ]) {
+      const ui = `extends Control # base\n\n${decl}\n\tpass\n`;
+      expect(scan(`conn-annot-${decl.length}`, { "Main.tscn": scene("_on_button_pressed"), "ui.gd": ui })).toEqual([]);
+    }
+  });
+
+  it("re-reads a script after it changes", () => {
+    const files = { "Main.tscn": scene("_on_later"), "ui.gd": script };
+    expect(scan("conn-change", files)).toEqual(["scene-connection-method-missing@10"]);
+    expect(
+      scan("conn-change", { ...files, "ui.gd": script + "\nfunc _on_later() -> void:\n\tpass\n" }),
+    ).toEqual([]);
+  });
+
   it("skips scripts whose base class is user-defined (inheritance chain unknown)", () => {
     expect(
       scan("conn-user", { "Main.tscn": scene("_on_buton_pressed"), "ui.gd": "extends BaseUI\n" }),
