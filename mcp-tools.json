@@ -135,7 +135,7 @@
   },
   {
     "name": "lint_project",
-    "description": "Lint every GDScript file under a project root, honoring include/exclude globs from godot-correctness.config.json. Returns aggregated findings and severity counts.",
+    "description": "Lint every GDScript file under a project root, honoring include/exclude globs from godot-correctness.config.json. Returns aggregated findings and severity counts, and the Godot version project.godot declares. Pass 'baseline' to see only new findings.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -143,11 +143,32 @@
           "type": "string",
           "minLength": 1,
           "description": "Path to the Godot project root"
+        },
+        "baseline": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional gdcorrect baseline file (from 'gdcorrect <cmd> --write-baseline'); relative paths resolve against the project root. When set, only findings not in the baseline are returned, plus 'baselined' and 'staleBaselineEntries' counts."
         }
       },
       "required": [
         "path"
       ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  {
+    "name": "list_rules",
+    "description": "List every rule gdcorrect can report (GDScript lint rules and the scene, project, and registry checks) with its description and default severity. Pass 'path' (a project root) to also get the effective enabled/severity/options from that project's godot-correctness.config.json and the Godot version project.godot declares.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional Godot project root to resolve its config"
+        }
+      },
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     }
@@ -162,6 +183,11 @@
           "type": "string",
           "minLength": 1,
           "description": "Path to the Godot project root"
+        },
+        "baseline": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional gdcorrect baseline file (from 'gdcorrect <cmd> --write-baseline'); relative paths resolve against the project root. When set, only findings not in the baseline are returned, plus 'baselined' and 'staleBaselineEntries' counts."
         }
       },
       "required": [
@@ -181,6 +207,11 @@
           "type": "string",
           "minLength": 1,
           "description": "Path to the Godot project root"
+        },
+        "baseline": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional gdcorrect baseline file (from 'gdcorrect <cmd> --write-baseline'); relative paths resolve against the project root. When set, only findings not in the baseline are returned, plus 'baselined' and 'staleBaselineEntries' counts."
         }
       },
       "required": [
@@ -200,6 +231,11 @@
           "type": "string",
           "minLength": 1,
           "description": "Path to the Godot project root"
+        },
+        "baseline": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional gdcorrect baseline file (from 'gdcorrect <cmd> --write-baseline'); relative paths resolve against the project root. When set, only findings not in the baseline are returned, plus 'baselined' and 'staleBaselineEntries' counts."
         }
       },
       "required": [
@@ -219,6 +255,11 @@
           "type": "string",
           "minLength": 1,
           "description": "Path to the Godot project root"
+        },
+        "baseline": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Optional gdcorrect baseline file (from 'gdcorrect <cmd> --write-baseline'); relative paths resolve against the project root. When set, only findings not in the baseline are returned, plus 'baselined' and 'staleBaselineEntries' counts."
         }
       },
       "required": [

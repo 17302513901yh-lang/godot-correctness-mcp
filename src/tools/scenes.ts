@@ -1,11 +1,33 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { projectReport, validateSceneFiles } from "../scenes/report.js";
+import { projectReport, reportFindings, validateSceneFiles } from "../scenes/report.js";
 import { validateProjectConfig, validateRegistries } from "../scenes/validate.js";
 import { requireDir } from "../project/walk.js";
+import { baselineFindings } from "../baseline.js";
+import type { Finding } from "../lint/types.js";
 import { guard } from "./result.js";
 
-const ROOT_ARG = { path: z.string().min(1).describe("Path to the Godot project root") };
+export const BASELINE_ARG = z
+  .string()
+  .min(1)
+  .optional()
+  .describe(
+    "Optional gdcorrect baseline file (from 'gdcorrect <cmd> --write-baseline'); relative paths resolve " +
+      "against the project root. When set, only findings not in the baseline are returned, plus " +
+      "'baselined' and 'staleBaselineEntries' counts.",
+  );
+
+const ROOT_ARG = {
+  path: z.string().min(1).describe("Path to the Godot project root"),
+  baseline: BASELINE_ARG,
+};
+
+/** { root, findings, count } with an optional baseline applied. */
+function findingsPayload(root: string, findings: Finding[], baseline?: string): Record<string, unknown> {
+  if (!baseline) return { root, findings, count: findings.length };
+  const b = baselineFindings(root, baseline, findings);
+  return { root, ...b, count: b.findings.length };
+}
 const READ_ONLY = { readOnlyHint: true, openWorldHint: false } as const;
 
 /** Register the scene / resource / registry static-analysis tools. */
@@ -21,11 +43,10 @@ export function registerSceneTools(server: McpServer): void {
       inputSchema: ROOT_ARG,
       annotations: READ_ONLY,
     },
-    async ({ path }) =>
+    async ({ path, baseline }) =>
       guard(async () => {
         requireDir(path);
-        const findings = await validateSceneFiles(path);
-        return { root: path, findings, count: findings.length };
+        return findingsPayload(path, await validateSceneFiles(path), baseline);
       }),
   );
 
@@ -38,11 +59,10 @@ export function registerSceneTools(server: McpServer): void {
       inputSchema: ROOT_ARG,
       annotations: READ_ONLY,
     },
-    async ({ path }) =>
+    async ({ path, baseline }) =>
       guard(() => {
         requireDir(path);
-        const findings = validateProjectConfig(path);
-        return { root: path, findings, count: findings.length };
+        return findingsPayload(path, validateProjectConfig(path), baseline);
       }),
   );
 
@@ -56,10 +76,12 @@ export function registerSceneTools(server: McpServer): void {
       inputSchema: ROOT_ARG,
       annotations: READ_ONLY,
     },
-    async ({ path }) =>
+    async ({ path, baseline }) =>
       guard(() => {
         requireDir(path);
-        return { root: path, ...validateRegistries(path) };
+        const r = validateRegistries(path);
+        if (!baseline) return { root: path, ...r };
+        return { root: path, entries: r.entries, ...baselineFindings(path, baseline, r.findings) };
       }),
   );
 
@@ -72,10 +94,29 @@ export function registerSceneTools(server: McpServer): void {
       inputSchema: ROOT_ARG,
       annotations: READ_ONLY,
     },
-    async ({ path }) =>
-      guard(() => {
+    async ({ path, baseline }) =>
+      guard(async () => {
         requireDir(path);
-        return projectReport(path);
+        const r = await projectReport(path);
+        if (!baseline) return r;
+        // Filter each category down to the findings the baseline does not cover.
+        const b = baselineFindings(path, baseline, reportFindings(r));
+        const keep = new Set(b.findings);
+        const pick = (fs: Finding[]): Finding[] => fs.filter((f) => keep.has(f));
+        const count = (s: Finding["severity"]): number => b.findings.filter((f) => f.severity === s).length;
+        return {
+          ...r,
+          scenes: pick(r.scenes),
+          project: pick(r.project),
+          registries: pick(r.registries),
+          lint: pick(r.lint),
+          errorCount: count("error"),
+          warningCount: count("warning"),
+          infoCount: count("info"),
+          totalFindings: b.findings.length,
+          baselined: b.baselined,
+          staleBaselineEntries: b.staleBaselineEntries,
+        };
       }),
   );
 }

@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { applyBaseline, createBaseline, readBaseline, writeBaseline } from "./baseline.js";
 import { isMainModule } from "./entry.js";
+import { effectiveRules } from "./lint/catalog.js";
+import { loadConfig, type ResolvedConfig } from "./lint/config.js";
 import { lintProject } from "./lint/project.js";
 import type { Finding } from "./lint/types.js";
 import { requireDir } from "./project/walk.js";
@@ -159,6 +161,7 @@ export function parseArgs(argv: string[]): CliArgs {
 
 const USAGE =
   `Usage: gdcorrect <${[...COMMANDS].join("|")}> <projectPath> [options]\n` +
+  "       gdcorrect rules [projectPath]\n" +
   "Run 'gdcorrect --help' for commands, options and exit codes.";
 
 const HELP = `gdcorrect: offline static correctness checks for Godot 4.x projects
@@ -173,6 +176,8 @@ Commands:
                         and input action names used in scripts
   validate-registries   Deep-validate .tres registries listed in registryDirs
   report                Run every check above and aggregate the results
+  rules [projectPath]   List every rule id and its default severity, or the
+                        effective settings from a project's config
 
 Options:
   -f, --format <${FORMATS.join("|")}>   Output format (default: json)
@@ -206,6 +211,40 @@ function render(res: CommandResult, format: Format): string {
   }
 }
 
+/** `gdcorrect rules [projectPath]`: the rule catalogue, optionally with a project's effective config. */
+function listRules(
+  root: string | undefined,
+  format: string,
+  log: (s: string) => void,
+  errOut: (s: string) => void,
+): number {
+  if (format !== "json" && format !== "pretty") {
+    errOut("gdcorrect rules: use --format json or pretty.");
+    return 2;
+  }
+  try {
+    let cfg: ResolvedConfig | undefined;
+    if (root) {
+      requireDir(root);
+      cfg = loadConfig(root);
+    }
+    const rules = effectiveRules(cfg);
+    if (format === "json") {
+      log(JSON.stringify({ root: root ?? null, godotVersion: cfg?.projectGodotVersion ?? null, rules }, null, 2));
+      return 0;
+    }
+    const width = Math.max(...rules.map((r) => r.id.length));
+    for (const r of rules) {
+      const state = r.enabled ? r.severity.padEnd(7) : "off    ";
+      log(`${r.id.padEnd(width)}  ${state}  ${r.description}`);
+    }
+    return 0;
+  } catch (err) {
+    errOut(`gdcorrect: ${err instanceof Error ? err.message : String(err)}`);
+    return 2;
+  }
+}
+
 /**
  * Exit code: 0 when no finding is at or above --fail-on (default: error), 1
  * when one is, 2 on usage, config, or tool failure.
@@ -232,6 +271,7 @@ export async function runCli(
     log(readVersion());
     return 0;
   }
+  if (command === "rules") return listRules(root, format, log, errOut);
   if (!command || !COMMANDS.has(command) || !root) {
     errOut(command && !COMMANDS.has(command) ? `gdcorrect: unknown command: ${command}\n${USAGE}` : USAGE);
     return 2;

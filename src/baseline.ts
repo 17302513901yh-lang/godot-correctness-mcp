@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { z } from "zod";
 import type { Finding } from "./lint/types.js";
 
@@ -122,4 +122,18 @@ export function readBaseline(path: string): BaselineFile {
 
 export function writeBaseline(path: string, baseline: BaselineFile): void {
   writeFileSync(path, `${JSON.stringify(baseline, null, 2)}\n`);
+}
+
+/**
+ * Apply a baseline file to a findings list for tool/CLI payloads. A relative
+ * `baselinePath` resolves against the project root.
+ */
+export function baselineFindings(
+  root: string,
+  baselinePath: string,
+  findings: Finding[],
+): { findings: Finding[]; baselined: number; staleBaselineEntries: number } {
+  const path = isAbsolute(baselinePath) ? baselinePath : join(root, baselinePath);
+  const r = applyBaseline(root, findings, readBaseline(path));
+  return { findings: r.newFindings, baselined: r.baselined, staleBaselineEntries: r.stale };
 }

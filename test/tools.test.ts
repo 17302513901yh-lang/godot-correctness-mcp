@@ -147,3 +147,47 @@ describe("CLI, MCP tools and report agree", () => {
     expect(reportFindings(JSON.parse(out))).toEqual(reportFindings(report));
   });
 });
+
+describe("list_rules and baseline arguments", () => {
+  it("list_rules returns lint and scene rules, with a project's effective config", async () => {
+    const defaults = (await call("list_rules", {})).body;
+    const ids = defaults.rules.map((r: { id: string }) => r.id);
+    expect(ids).toContain("delta-misuse");
+    expect(ids).toContain("scene-node-path-missing");
+    expect(ids).toContain("unused-suppression");
+
+    const root = join(tmp, "rules-project");
+    mkdirSync(root, { recursive: true });
+    writeFileSync(join(root, "project.godot"), '[application]\nconfig/features=PackedStringArray("4.5")\n');
+    writeFileSync(
+      join(root, "godot-correctness.config.json"),
+      JSON.stringify({ rules: { "untyped-declaration": { enabled: false }, "delta-misuse": { severity: "warning" } } }),
+    );
+    const r = (await call("list_rules", { path: root })).body;
+    expect(r.godotVersion).toBe("4.5");
+    const byId = new Map(r.rules.map((x: { id: string }) => [x.id, x]));
+    expect(byId.get("untyped-declaration")).toMatchObject({ enabled: false });
+    expect(byId.get("delta-misuse")).toMatchObject({ enabled: true, severity: "warning", defaultSeverity: "error" });
+  });
+
+  it("lint_project and project_report honour a baseline", async () => {
+    const root = join(tmp, "baseline-project");
+    mkdirSync(root, { recursive: true });
+    writeFileSync(join(root, "project.godot"), "[application]\n");
+    writeFileSync(join(root, "a.gd"), "var a = 1\n");
+    const { runCli } = await import("../src/cli.js");
+    expect(await runCli(["report", root, "--write-baseline", join(root, "b.json")], () => {}, () => {})).toBe(0);
+    writeFileSync(join(root, "c.gd"), "var c = 1\n");
+
+    const lint = (await call("lint_project", { path: root, baseline: "b.json" })).body;
+    expect(lint.findings.map((f: { file: string }) => f.file)).toEqual(["c.gd"]);
+    expect(lint).toMatchObject({ baselined: 1, staleBaselineEntries: 0, warningCount: 1 });
+
+    const report = (await call("project_report", { path: root, baseline: "b.json" })).body;
+    expect(report.lint.map((f: { file: string }) => f.file)).toEqual(["c.gd"]);
+    expect(report).toMatchObject({ totalFindings: 1, baselined: 1 });
+
+    const missing = await call("validate_scenes", { path: root, baseline: "nope.json" });
+    expect(missing.isError).toBe(true);
+  });
+});

@@ -60,3 +60,29 @@ export const RULE_INFO: ReadonlyMap<string, RuleInfo> = new Map(ALL_RULES.map((r
 
 /** Ids reported by the scene/project/registry checks rather than the lint pass. */
 export const SCENE_RULE_IDS: ReadonlySet<string> = new Set(SCENE_RULES.map((r) => r.id));
+
+/** A rule as configured for a project: catalogue info plus the effective settings. */
+export interface EffectiveRule extends RuleInfo {
+  enabled: boolean;
+  /** Severity after any config override (rules that vary per finding use this as the default). */
+  severity: Severity;
+  options: Record<string, unknown>;
+}
+
+/**
+ * Every rule with its effective settings under `config` (rules.<id>.enabled,
+ * .severity, .options). Without a config, the defaults.
+ */
+export function effectiveRules(config?: {
+  rules: Record<string, { enabled?: boolean; severity?: Severity; options?: Record<string, unknown> }>;
+}): EffectiveRule[] {
+  return ALL_RULES.map((r) => {
+    const c = config?.rules[r.id];
+    return {
+      ...r,
+      enabled: c?.enabled !== false,
+      severity: c?.severity ?? r.defaultSeverity,
+      options: c?.options ?? {},
+    };
+  });
+}

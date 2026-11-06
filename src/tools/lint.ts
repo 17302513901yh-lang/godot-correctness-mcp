@@ -6,7 +6,10 @@ import { findProjectRoot, loadConfig } from "../lint/config.js";
 import { lintSource } from "../lint/engine.js";
 import { lintProject } from "../lint/project.js";
 import { requireDir } from "../project/walk.js";
+import { baselineFindings } from "../baseline.js";
+import { effectiveRules } from "../lint/catalog.js";
 import { guard } from "./result.js";
+import { BASELINE_ARG } from "./scenes.js";
 
 const READ_ONLY = { readOnlyHint: true, openWorldHint: false } as const;
 
@@ -48,16 +51,50 @@ export function registerLintTools(server: McpServer): void {
     {
       description:
         "Lint every GDScript file under a project root, honoring include/exclude globs " +
-        "from godot-correctness.config.json. Returns aggregated findings and severity counts.",
+        "from godot-correctness.config.json. Returns aggregated findings and severity counts, " +
+        "and the Godot version project.godot declares. Pass 'baseline' to see only new findings.",
       inputSchema: {
         path: z.string().min(1).describe("Path to the Godot project root"),
+        baseline: BASELINE_ARG,
+      },
+      annotations: READ_ONLY,
+    },
+    async ({ path, baseline }) =>
+      guard(async () => {
+        requireDir(path);
+        const r = await lintProject(path);
+        if (!baseline) return r;
+        const b = baselineFindings(path, baseline, r.findings);
+        const count = (s: string): number => b.findings.filter((f) => f.severity === s).length;
+        return {
+          ...r,
+          ...b,
+          errorCount: count("error"),
+          warningCount: count("warning"),
+          infoCount: count("info"),
+        };
+      }),
+  );
+
+  server.registerTool(
+    "list_rules",
+    {
+      description:
+        "List every rule gdcorrect can report (GDScript lint rules and the scene, project, and " +
+        "registry checks) with its description and default severity. Pass 'path' (a project " +
+        "root) to also get the effective enabled/severity/options from that project's " +
+        "godot-correctness.config.json and the Godot version project.godot declares.",
+      inputSchema: {
+        path: z.string().min(1).optional().describe("Optional Godot project root to resolve its config"),
       },
       annotations: READ_ONLY,
     },
     async ({ path }) =>
       guard(() => {
+        if (!path) return { root: null, godotVersion: null, rules: effectiveRules() };
         requireDir(path);
-        return lintProject(path);
+        const cfg = loadConfig(path);
+        return { root: path, godotVersion: cfg.projectGodotVersion, rules: effectiveRules(cfg) };
       }),
   );
 }

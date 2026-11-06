@@ -60,8 +60,11 @@ npx -y -p @tmhs/godot-correctness-mcp gdcorrect lint . --format json
 ## MCP surface
 
 **Tools:** `server_info`; `api_symbol_lookup`, `api_class_summary`, `api_diff`;
-`lint_file`, `lint_project`; `validate_scenes`, `validate_project_config`,
-`validate_registries`, `project_report`.
+`lint_file`, `lint_project`, `list_rules`; `validate_scenes`, `validate_project_config`,
+`validate_registries`, `project_report`. The lint, validate, and report tools take an
+optional `baseline` file (the one `gdcorrect --write-baseline` writes) to return only new
+findings; `list_rules` (and `gdcorrect rules`) lists every rule id with its default and
+per-project severity.
 
 **Resources:** curated GDScript skill snippets under `skill://` (data-driven
 resources, signal hygiene, typed GDScript, preload vs load).

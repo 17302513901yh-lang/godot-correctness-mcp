@@ -30,6 +30,7 @@ describe("API tools (offline, in-memory, real artifacts)", () => {
       "api_symbol_lookup",
       "lint_file",
       "lint_project",
+      "list_rules",
       "project_report",
       "server_info",
       "validate_project_config",

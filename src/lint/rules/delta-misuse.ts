@@ -65,7 +65,7 @@ function multipliesByDelta(node: Node, source: string): boolean {
  */
 export const deltaMisuse: Rule = {
   id: "delta-misuse",
-  description: "velocity * delta into move_and_slide(); or delta-less position/rotation change in _process.",
+  description: "velocity = speed * delta before move_and_slide() (double-scaled); or delta-less position/rotation change in _process.",
   defaultSeverity: "error",
   check(ctx) {
     const out: RawFinding[] = [];
