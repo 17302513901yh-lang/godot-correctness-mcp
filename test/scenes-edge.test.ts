@@ -308,6 +308,23 @@ describe("project-input-action-undefined", () => {
     ).toEqual(['10:68 Input action "nope" is not defined in project.godot [input].']);
   });
 
+  it("include scopes the script checks the same way as lint", async () => {
+    const root = project("include-scope", {
+      "godot-correctness.config.json": JSON.stringify({ include: ["src/**/*.gd"] }),
+      "project.godot": PROJECT,
+      "main.tscn":
+        '[gd_scene format=3]\n\n[ext_resource type="Script" path="res://tools/t.gd" id="1"]\n\n' +
+        '[node name="Main" type="Node"]\nscript = ExtResource("1")\n',
+      "src/in.gd": 'func f() -> void:\n\tInput.is_action_pressed("in_typo")\n',
+      "tools/t.gd": 'extends Node\n\n@onready var x: Node = $Nope\n\nfunc f() -> void:\n\tInput.is_action_pressed("out_typo")\n',
+    });
+    const { projectReport } = await import("../src/scenes/report.js");
+    const r = await projectReport(root);
+    expect([...r.project, ...r.scenes].map((f) => `${f.file}:${f.ruleId}`)).toEqual([
+      "src/in.gd:project-input-action-undefined",
+    ]);
+  });
+
   it("respects exclude globs", () => {
     const root = project("input-actions-excluded", {
       "project.godot": PROJECT,

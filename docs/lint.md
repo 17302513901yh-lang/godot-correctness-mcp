@@ -48,6 +48,12 @@ defaults apply when the file is absent. See
   default**; add `"addons/**"` to `exclude` to skip third-party plugins.
   Excluded directories are not descended into, and `.git/` and `.godot/` are
   always skipped.
+  - `include` selects the `.gd` files for **every** script check: lint,
+    `scene-node-path-missing`, and `project-input-action-undefined`.
+  - `exclude` applies to every check: the script checks above and the `.tscn`
+    and registry `.tres` walks (so excluding `**/addons/**` also skips scene
+    validation there). `uid://` lookups still see excluded files, since
+    references into them are valid.
 - `rules.<id>.enabled`: set `false` to disable a rule.
 - `rules.<id>.severity`: override to `error` / `warning` / `info`. A config
   override wins over a rule's per-finding severity.

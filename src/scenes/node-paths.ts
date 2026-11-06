@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import picomatch from "picomatch";
 import type { Node } from "web-tree-sitter";
 import { calleeName, text, walk } from "../gdscript/ast.js";
 import { parseGDScript } from "../gdscript/parser.js";
@@ -7,7 +5,7 @@ import { parseGodotFile, sectionsOfKind } from "../godot/text-format.js";
 import { applyRuleConfig, loadConfig, type ResolvedConfig } from "../lint/config.js";
 import { applySuppressions } from "../lint/suppressions.js";
 import type { Finding } from "../lint/types.js";
-import { walkProject } from "../project/walk.js";
+import { projectFiles, readSource, scriptFiles } from "../project/files.js";
 import { nodeTree, type SceneNode } from "./scene-graph.js";
 import { normalizeResPath } from "./uids.js";
 
@@ -51,10 +49,10 @@ function pathUses(root: Node, source: string): PathUse[] {
 }
 
 /** For every script, how each scene that attaches it sees that node's subtree. */
-function scriptViews(root: string, exclude: (rel: string) => boolean): Map<string, SceneView[]> {
+function scriptViews(root: string, cfg: ResolvedConfig): Map<string, SceneView[]> {
   const views = new Map<string, SceneView[]>();
-  for (const { full, rel } of walkProject(root, { exts: [".tscn"], exclude })) {
-    const file = parseGodotFile(readFileSync(full, "utf-8"));
+  for (const { full, rel } of projectFiles(root, cfg, ".tscn")) {
+    const file = parseGodotFile(readSource(root, cfg, full));
     const scripts = new Map<string, string>();
     for (const s of sectionsOfKind(file, "ext_resource")) {
       const id = s.attributes["id"]?.string ?? s.attributes["id"]?.raw;
@@ -95,15 +93,14 @@ function resolve(view: Extract<SceneView, { kind: "known" }>, rel: string): "fou
  */
 export async function validateNodePaths(root: string, config?: ResolvedConfig): Promise<Finding[]> {
   const cfg = config ?? loadConfig(root);
-  const exclude = picomatch(cfg.exclude, { dot: true });
-  const views = scriptViews(root, exclude);
+  const views = scriptViews(root, cfg);
   if (views.size === 0) return [];
 
   const findings: Finding[] = [];
-  for (const { full, rel } of walkProject(root, { exts: [".gd"], exclude })) {
+  for (const { full, rel } of scriptFiles(root, cfg)) {
     const sceneViews = views.get(`res://${rel}`);
     if (!sceneViews || sceneViews.some((v) => v.kind === "unknown")) continue;
-    const source = readFileSync(full, "utf-8");
+    const source = readSource(root, cfg, full);
     if (!source.includes("$") && !source.includes("get_node")) continue;
     const tree = await parseGDScript(source);
     const fileFindings: Finding[] = [];

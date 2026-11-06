@@ -10,6 +10,7 @@ import {
 } from "../godot/text-format.js";
 import { applyRuleConfig, CONFIG_FILENAME, loadConfig, type ResolvedConfig } from "../lint/config.js";
 import type { Finding, Severity } from "../lint/types.js";
+import { projectFiles, readSource } from "../project/files.js";
 import { walkProject } from "../project/walk.js";
 import { checkInputActionUsage } from "./input-actions.js";
 import { existsInProject, isInsideRoot, looksLikeResourcePath, resolveResPath } from "./paths.js";
@@ -179,12 +180,11 @@ function checkExtResource(
  */
 export function validateScenes(root: string, config?: ResolvedConfig): Finding[] {
   const cfg = config ?? loadConfig(root);
-  const exclude = picomatch(cfg.exclude, { dot: true });
   const findings: Finding[] = [];
   const uids = lazyUidIndex(root);
 
-  for (const { full, rel } of walkProject(root, { exts: [".tscn"], exclude })) {
-    const file = parseGodotFile(readFileSync(full, "utf-8"));
+  for (const { full, rel } of projectFiles(root, cfg, ".tscn")) {
+    const file = parseGodotFile(readSource(root, cfg, full));
     const { byId, duplicates } = extResourceIndex(file);
 
     for (const { id, section } of duplicates) {
@@ -272,7 +272,7 @@ export function validateProjectConfig(root: string, config?: ResolvedConfig): Fi
     ...checkInputActionUsage(
       root,
       new Set(Object.keys(input?.properties ?? {})),
-      picomatch(cfg.exclude, { dot: true }),
+      cfg,
     ),
   );
   if (input) {

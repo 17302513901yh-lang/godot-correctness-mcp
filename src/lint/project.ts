@@ -1,6 +1,4 @@
-import { readFileSync } from "node:fs";
-import picomatch from "picomatch";
-import { walkProject } from "../project/walk.js";
+import { readSource, scriptFiles } from "../project/files.js";
 import { loadConfig, type ResolvedConfig } from "./config.js";
 import { lintSource } from "./engine.js";
 import type { Finding } from "./types.js";
@@ -22,16 +20,11 @@ export async function lintProject(
   config?: ResolvedConfig,
 ): Promise<ProjectLintResult> {
   const cfg = config ?? loadConfig(root);
-  const isIncluded = picomatch(cfg.include, { dot: true });
-  const isExcluded = picomatch(cfg.exclude, { dot: true });
-
-  const files = walkProject(root, { exts: [".gd"], exclude: isExcluded }).filter(({ rel }) =>
-    isIncluded(rel),
-  );
+  const files = scriptFiles(root, cfg);
 
   const findings: Finding[] = [];
   for (const { full, rel } of files) {
-    const source = readFileSync(full, "utf-8");
+    const source = readSource(root, cfg, full);
     findings.push(...(await lintSource(rel, source, cfg)));
   }
 

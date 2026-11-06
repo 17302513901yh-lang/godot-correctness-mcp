@@ -1,7 +1,7 @@
-import { readFileSync } from "node:fs";
 import { applySuppressions } from "../lint/suppressions.js";
 import type { Finding } from "../lint/types.js";
-import { walkProject } from "../project/walk.js";
+import type { ResolvedConfig } from "../lint/config.js";
+import { readSource, scriptFiles } from "../project/files.js";
 
 /**
  * Input/InputEvent/InputMap calls whose string-literal arguments name input
@@ -67,11 +67,11 @@ function isBuiltinAction(name: string): boolean {
 export function checkInputActionUsage(
   root: string,
   definedActions: Set<string>,
-  exclude: (rel: string) => boolean,
+  cfg: ResolvedConfig,
 ): Finding[] {
   const findings: Finding[] = [];
-  for (const { full, rel } of walkProject(root, { exts: [".gd"], exclude })) {
-    const source = readFileSync(full, "utf-8");
+  for (const { full, rel } of scriptFiles(root, cfg)) {
+    const source = readSource(root, cfg, full);
     const fileFindings: Finding[] = [];
     source.split(/\r?\n/).forEach((rawLine, i) => {
       if (!rawLine.includes("action") && !rawLine.includes("get_axis") && !rawLine.includes("get_vector")) return;
