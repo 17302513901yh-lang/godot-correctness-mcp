@@ -89,40 +89,112 @@ export function renderPretty(res: CommandResult): string {
   return lines.join("\n").trimStart();
 }
 
+const FAIL_ON = ["error", "warning", "info", "none"] as const;
+type FailOn = (typeof FAIL_ON)[number];
+
+function isFailOn(s: string): s is FailOn {
+  return (FAIL_ON as readonly string[]).includes(s);
+}
+
+const SEVERITY_RANK: Record<Finding["severity"], number> = { error: 3, warning: 2, info: 1 };
+
+/** Whether any finding is at or above the --fail-on threshold. */
+function fails(findings: Finding[], failOn: FailOn): boolean {
+  if (failOn === "none") return false;
+  const min = SEVERITY_RANK[failOn];
+  return findings.some((f) => SEVERITY_RANK[f.severity] >= min);
+}
+
 interface CliArgs {
   command?: string;
   root?: string;
   format: string;
   baseline?: string;
   writeBaseline?: string;
+  failOn: string;
+  help: boolean;
+  version: boolean;
 }
 
-function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = { format: "json" };
+class UsageError extends Error {}
+
+/** Options that take a value, as `--flag value` or `--flag=value`. */
+const VALUE_FLAGS: Record<string, "format" | "baseline" | "writeBaseline" | "failOn"> = {
+  "--format": "format",
+  "-f": "format",
+  "--baseline": "baseline",
+  "--write-baseline": "writeBaseline",
+  "--fail-on": "failOn",
+};
+
+/** Parse argv strictly: unknown options, missing values and extra arguments are usage errors. */
+export function parseArgs(argv: string[]): CliArgs {
+  const args: CliArgs = { format: "json", failOn: "error", help: false, version: false };
   const positional: string[] = [];
-  // Supports both `--flag value` and `--flag=value`.
-  const flags: Record<string, (v: string) => void> = {
-    "--format": (v) => (args.format = v),
-    "-f": (v) => (args.format = v),
-    "--baseline": (v) => (args.baseline = v),
-    "--write-baseline": (v) => (args.writeBaseline = v),
-  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
-    const eq = a.indexOf("=");
-    const name = a.startsWith("-") && eq > 0 ? a.slice(0, eq) : a;
-    const set = flags[name];
-    if (set) set(eq > 0 && name !== a ? a.slice(eq + 1) : (argv[++i] ?? ""));
-    else positional.push(a);
+    if (a === "--help" || a === "-h") {
+      args.help = true;
+      continue;
+    }
+    if (a === "--version" || a === "-v") {
+      args.version = true;
+      continue;
+    }
+    if (a.startsWith("-") && a.length > 1) {
+      const eq = a.indexOf("=");
+      const name = eq > 0 ? a.slice(0, eq) : a;
+      const key = VALUE_FLAGS[name];
+      if (!key) throw new UsageError(`Unknown option: ${name}`);
+      let value: string | undefined;
+      if (eq > 0) value = a.slice(eq + 1);
+      else if (argv[i + 1] !== undefined && !argv[i + 1]!.startsWith("-")) value = argv[++i];
+      if (!value) throw new UsageError(`Option ${name} needs a value.`);
+      args[key] = value;
+      continue;
+    }
+    positional.push(a);
   }
+  if (positional[0] === "help") args.help = true;
+  else if (positional.length > 2) throw new UsageError(`Unexpected argument: ${positional[2]}`);
   args.command = positional[0];
   args.root = positional[1];
   return args;
 }
 
 const USAGE =
-  `Usage: gdcorrect <${[...COMMANDS].join("|")}> <projectPath> [--format ${FORMATS.join("|")}]\n` +
-  "                 [--baseline <file>] [--write-baseline <file>]";
+  `Usage: gdcorrect <${[...COMMANDS].join("|")}> <projectPath> [options]\n` +
+  "Run 'gdcorrect --help' for commands, options and exit codes.";
+
+const HELP = `gdcorrect: offline static correctness checks for Godot 4.x projects
+
+Usage: gdcorrect <command> <projectPath> [options]
+
+Commands:
+  lint                  Lint GDScript files with the configured rules
+  validate-scenes       Check .tscn files: resources, uids, node parents,
+                        [connection] methods, and $Path/get_node literals
+  validate-project      Check project.godot: main scene, autoloads, input map,
+                        and input action names used in scripts
+  validate-registries   Deep-validate .tres registries listed in registryDirs
+  report                Run every check above and aggregate the results
+
+Options:
+  -f, --format <${FORMATS.join("|")}>   Output format (default: json)
+      --baseline <file>             Report only findings not in this baseline
+      --write-baseline <file>       Record current findings as the baseline, exit 0
+      --fail-on <${FAIL_ON.join("|")}>
+                                    Lowest severity that fails the run (default: error)
+  -h, --help                        Show this help
+  -v, --version                     Print the version
+
+Exit codes:
+  0  no findings at or above --fail-on
+  1  findings at or above --fail-on
+  2  usage, config, or tool error
+
+Config: godot-correctness.config.json in the project root.
+Docs:   https://github.com/TMHSDigital/godot-correctness-mcp`;
 
 function render(res: CommandResult, format: Format): string {
   switch (format) {
@@ -139,19 +211,42 @@ function render(res: CommandResult, format: Format): string {
   }
 }
 
-/** Exit code: 0 clean, 1 on any error-severity finding, 2 on tool failure. */
+/**
+ * Exit code: 0 when no finding is at or above --fail-on (default: error), 1
+ * when one is, 2 on usage, config, or tool failure.
+ */
 export async function runCli(
   argv: string[],
   log: (s: string) => void = console.log,
   errOut: (s: string) => void = console.error,
 ): Promise<number> {
-  const { command, root, format, baseline, writeBaseline: writeTo } = parseArgs(argv);
+  let parsed: CliArgs;
+  try {
+    parsed = parseArgs(argv);
+  } catch (err) {
+    if (!(err instanceof UsageError)) throw err;
+    errOut(`gdcorrect: ${err.message}\n${USAGE}`);
+    return 2;
+  }
+  const { command, root, format, baseline, writeBaseline: writeTo, failOn } = parsed;
+  if (parsed.help) {
+    log(HELP);
+    return 0;
+  }
+  if (parsed.version) {
+    log(readVersion());
+    return 0;
+  }
   if (!command || !COMMANDS.has(command) || !root) {
-    errOut(USAGE);
+    errOut(command && !COMMANDS.has(command) ? `gdcorrect: unknown command: ${command}\n${USAGE}` : USAGE);
     return 2;
   }
   if (!isFormat(format)) {
     errOut(`Unknown format: ${format}. Use one of: ${FORMATS.join(", ")}.`);
+    return 2;
+  }
+  if (!isFailOn(failOn)) {
+    errOut(`Unknown --fail-on level: ${failOn}. Use one of: ${FAIL_ON.join(", ")}.`);
     return 2;
   }
   if (baseline !== undefined && writeTo !== undefined) {
@@ -185,7 +280,7 @@ export async function runCli(
       );
     }
     log(render(res, format));
-    return countErrors(res.findings) > 0 ? 1 : 0;
+    return fails(res.findings, failOn) ? 1 : 0;
   } catch (err) {
     errOut(`gdcorrect: ${err instanceof Error ? err.message : String(err)}`);
     return 2;

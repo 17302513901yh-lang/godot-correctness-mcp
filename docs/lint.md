@@ -123,11 +123,16 @@ var hud := get_node("HUD")   # a comment-only directive applies to the next line
 gdcorrect lint <projectPath> --format json    # primary, machine-readable
 gdcorrect lint <projectPath> --format pretty  # human-readable
 gdcorrect lint <projectPath> --format sarif   # SARIF 2.1.0 for code scanning
+gdcorrect lint <projectPath> --fail-on warning  # also fail on warnings
+gdcorrect --help                              # every command, option, and exit code
 ```
 
-JSON output is a findings array (`file`, `line`, `col`, `ruleId`, `severity`,
-`message`, `suggestion`) plus severity counts. Exit codes: **0** clean, **1** on
-any error-severity finding, **2** on tool failure.
+JSON output for `lint` is a findings array (`file`, `line`, `col`, `ruleId`,
+`severity`, `message`, `suggestion`) plus `fileCount` and severity counts. With
+`--baseline`, the payload is `{ root, findings, count, baselined,
+staleBaselineEntries }` for every command. Exit codes: **0** no findings at or
+above `--fail-on` (default `error`), **1** otherwise, **2** on a usage, config,
+or tool error.
 
 ### GitHub Actions
 

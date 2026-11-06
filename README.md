@@ -68,11 +68,20 @@ resources, signal hygiene, typed GDScript, preload vs load).
 
 ## CLI and CI
 
-`gdcorrect <command> <projectPath> [--format json|pretty|sarif]`, where `<command>` is
-`lint`, `validate-scenes`, `validate-project`, `validate-registries`, or `report`.
-JSON is the primary, machine-readable format; `sarif` emits SARIF 2.1.0 for
-GitHub code scanning. Exit codes: **0** clean, **1** on any error-severity
-finding, **2** on tool failure.
+`gdcorrect <command> <projectPath> [options]`, where `<command>` is
+`lint`, `validate-scenes`, `validate-project`, `validate-registries`, or `report`
+(`gdcorrect --help` lists them all).
+
+| Option | Meaning |
+|--------|---------|
+| `-f`, `--format json\|pretty\|sarif` | Output format (default `json`). `sarif` emits SARIF 2.1.0 for GitHub code scanning. |
+| `--fail-on error\|warning\|info\|none` | Lowest severity that fails the run (default `error`). |
+| `--baseline <file>` / `--write-baseline <file>` | Report only new findings / record the current ones (see below). |
+| `-h`, `--help` / `-v`, `--version` | Help / package version. |
+
+Options also accept `--flag=value`. Unknown options, missing values, and extra
+arguments are rejected. Exit codes: **0** no findings at or above `--fail-on`,
+**1** otherwise, **2** on a usage, config, or tool error.
 
 ```yaml
 # .github/workflows/godot-correctness.yml
