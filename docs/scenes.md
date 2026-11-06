@@ -9,7 +9,7 @@ subcommands, all sharing the lint pillar's findings-array and exit-code contract
 ## Checks
 
 ### validate_scenes (`gdcorrect validate-scenes`)
-For every `.tscn` under the project root:
+For every `.tscn` under the project root (directories matched by `exclude` are skipped):
 
 | Rule ID | Severity | Flags |
 |---------|----------|-------|
@@ -36,8 +36,8 @@ Reads `project.godot`:
 | Rule ID | Severity | Flags |
 |---------|----------|-------|
 | `project-missing` | error | No `project.godot` at the given root. |
-| `project-main-scene-missing` | error | `run/main_scene` points at a missing scene. |
-| `project-autoload-missing` | error | An `[autoload]` entry points at a missing file (leading `*` handled). |
+| `project-main-scene-missing` | error / warning | `run/main_scene` points at a missing scene (error), or is a `uid://` that matches no scene in the project (warning). |
+| `project-autoload-missing` | error / warning | An `[autoload]` entry points at a missing file (error), or is a `uid://` that matches nothing in the project (warning). Leading `*` handled. |
 | `project-input-malformed` | warning | An `[input]` action that is not a well-formed dictionary. |
 | `project-input-action-undefined` | warning | A string-literal action name passed to `Input.is_action_*`, `get_action_strength`, `get_axis`, or `get_vector` in a `.gd` file that is not defined in `[input]` (built-in `ui_*` actions are allowed; `InputMap.has_action` is ignored). |
 
@@ -47,7 +47,7 @@ For each directory in `registryDirs`, every `.tres`:
 | Rule ID | Severity | Flags |
 |---------|----------|-------|
 | `registry-parse-error` | error | File is not a valid Godot text resource (no `gd_resource` header). |
-| `registry-script-missing` | error | The resource's script `ext_resource` does not resolve to an existing `.gd`. |
+| `registry-script-missing` | error | The resource's script `ext_resource` resolves to no existing `.gd`. Resolution matches scenes: by `uid` first, then `path`, so a stale path with a valid uid is fine. |
 | `registry-dangling-path` | error | A string property that looks like a resource path points at a missing file. |
 | `registry-dir-missing` | error | A `registryDirs` entry does not exist or lies outside the project root (reported against `godot-correctness.config.json`). A leading `res://` is accepted. |
 

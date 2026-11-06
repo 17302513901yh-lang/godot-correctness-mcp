@@ -75,6 +75,62 @@ function lazyUidIndex(root: string): () => UidIndex {
 }
 
 /**
+ * How Godot 4.4+ resolves a reference that may carry a `path` and/or a `uid`:
+ * by uid first, falling back to the path.
+ *
+ * - `ok`: loads `loads` (path and uid, if both given, agree)
+ * - `path-stale`: the path is missing but the uid resolves, so `loads` is the uid's file
+ * - `uid-mismatch`: both exist but name different files; Godot loads the uid's file
+ * - `uid-unknown`: uid-only reference whose uid matches nothing in the project
+ * - `missing`: resolves to no existing file
+ * - `unresolvable`: no path or uid we can check statically (e.g. `user://`)
+ */
+export interface RefResolution {
+  status: "ok" | "path-stale" | "uid-mismatch" | "uid-unknown" | "missing" | "unresolvable";
+  /** Absolute path Godot would load, when it resolves to an existing file. */
+  loads: string | null;
+  /** res:// target of the uid, when the uid is known. */
+  uidTarget?: string;
+}
+
+export function resolveReference(
+  root: string,
+  path: string | undefined,
+  uid: string | undefined,
+  uids: () => UidIndex,
+): RefResolution {
+  const abs = path ? resolveResPath(root, path) : null;
+  const pathOk = existsInProject(root, abs);
+  if (!uid) {
+    if (!abs) return { status: "unresolvable", loads: null };
+    return pathOk ? { status: "ok", loads: abs } : { status: "missing", loads: null };
+  }
+
+  const target = uids().get(uid);
+  const targetAbs = target ? resolveResPath(root, target) : null;
+  const targetOk = existsInProject(root, targetAbs);
+
+  if (path && abs) {
+    if (!pathOk) {
+      return targetOk
+        ? { status: "path-stale", loads: targetAbs, uidTarget: target }
+        : { status: "missing", loads: null, uidTarget: target };
+    }
+    if (target && targetOk && normalizeResPath(target) !== normalizeResPath(path)) {
+      return { status: "uid-mismatch", loads: targetAbs, uidTarget: target };
+    }
+    return { status: "ok", loads: abs, uidTarget: target };
+  }
+  if (!target) return { status: "uid-unknown", loads: null };
+  return targetOk ? { status: "ok", loads: targetAbs, uidTarget: target } : { status: "missing", loads: null, uidTarget: target };
+}
+
+/** A `res://` path or a `uid://` string, as used by run/main_scene and autoloads. */
+function resolvePathOrUid(root: string, p: string, uids: () => UidIndex): RefResolution {
+  return p.startsWith("uid://") ? resolveReference(root, undefined, p, uids) : resolveReference(root, p, undefined, uids);
+}
+
+/**
  * Check one ext_resource declaration. Godot 4.4+ loads by `uid` first and
  * falls back to `path`, so a stale path with a valid uid still loads (warning),
  * a uid that points somewhere other than `path` loads the uid's file (warning),
@@ -89,51 +145,31 @@ function checkExtResource(
   const path = s.attributes["path"]?.string;
   const uidAttr = s.attributes["uid"]?.string;
   const uid = uidAttr?.startsWith("uid://") ? uidAttr : undefined;
-  const abs = path ? resolveResPath(root, path) : null;
-  const pathOk = existsInProject(root, abs);
+  const r = resolveReference(root, path, uid, uids);
+  const target = r.uidTarget;
 
-  if (!uid) {
-    if (abs && !pathOk) {
-      return finding(rel, s.line, "scene-ext-resource-missing", "error",
-        `ext_resource path does not exist: ${path}`, "Fix the path or restore the missing file.");
-    }
-    return null;
-  }
-
-  const target = uids().get(uid);
-  const targetAbs = target ? resolveResPath(root, target) : null;
-  const targetOk = existsInProject(root, targetAbs);
-
-  if (path && abs) {
-    if (!pathOk) {
-      if (targetOk) {
-        return finding(rel, s.line, "scene-ext-resource-path-stale", "warning",
-          `ext_resource path ${path} does not exist; Godot will load ${uid} from ${target} instead.`,
-          `Update the path to ${target} (re-saving the scene in the editor does this).`);
-      }
-      return finding(rel, s.line, "scene-ext-resource-missing", "error",
-        `ext_resource path does not exist: ${path}` + (target ? ` (and ${uid} points at missing ${target})` : ""),
-        "Fix the path or restore the missing file.");
-    }
-    if (target && targetOk && normalizeResPath(target) !== normalizeResPath(path)) {
+  switch (r.status) {
+    case "path-stale":
+      return finding(rel, s.line, "scene-ext-resource-path-stale", "warning",
+        `ext_resource path ${path} does not exist; Godot will load ${uid} from ${target} instead.`,
+        `Update the path to ${target} (re-saving the scene in the editor does this).`);
+    case "uid-mismatch":
       return finding(rel, s.line, "scene-ext-resource-uid-mismatch", "warning",
         `ext_resource uid ${uid} belongs to ${target}, but path is ${path}; Godot loads by uid, so ${target} is used.`,
         "Fix whichever side is wrong; usually the file was moved or duplicated outside the editor.");
-    }
-    return null;
+    case "uid-unknown":
+      return finding(rel, s.line, "scene-ext-resource-uid-unknown", "warning",
+        `ext_resource ${uid} has no path and matches no .uid/.import/scene uid in the project.`,
+        "Restore the referenced file (and its .uid/.import sidecar) or re-save the scene in the editor.");
+    case "missing":
+      return finding(rel, s.line, "scene-ext-resource-missing", "error",
+        path
+          ? `ext_resource path does not exist: ${path}` + (uid && target ? ` (and ${uid} points at missing ${target})` : "")
+          : `ext_resource ${uid} points at ${target}, which does not exist.`,
+        path ? "Fix the path or restore the missing file." : "Restore the missing file.");
+    default:
+      return null;
   }
-
-  // uid-only reference.
-  if (!target) {
-    return finding(rel, s.line, "scene-ext-resource-uid-unknown", "warning",
-      `ext_resource ${uid} has no path and matches no .uid/.import/scene uid in the project.`,
-      "Restore the referenced file (and its .uid/.import sidecar) or re-save the scene in the editor.");
-  }
-  if (!targetOk) {
-    return finding(rel, s.line, "scene-ext-resource-missing", "error",
-      `ext_resource ${uid} points at ${target}, which does not exist.`, "Restore the missing file.");
-  }
-  return null;
 }
 
 /**
@@ -200,19 +236,13 @@ export function validateProjectConfig(root: string, config?: ResolvedConfig): Fi
   const app = file.sections.find((s) => s.kind === "application");
   const mainScene = app?.properties["run/main_scene"];
   const uids = lazyUidIndex(root);
-  /** Resolve res:// directly and uid:// via the index; null when unresolvable. */
-  const resolveRef = (p: string): { abs: string | null; unknownUid: boolean } => {
-    if (!p.startsWith("uid://")) return { abs: resolveResPath(root, p), unknownUid: false };
-    const target = uids().get(p);
-    return target ? { abs: resolveResPath(root, target), unknownUid: false } : { abs: null, unknownUid: true };
-  };
 
   if (mainScene?.kind === "string" && mainScene.string) {
-    const { abs, unknownUid } = resolveRef(mainScene.string);
-    if (abs && !existsInProject(root, abs)) {
+    const { status } = resolvePathOrUid(root, mainScene.string, uids);
+    if (status === "missing") {
       findings.push(finding(rel, mainScene.line, "project-main-scene-missing", "error",
         `Main scene does not exist: ${mainScene.string}`, "Fix run/main_scene or restore the scene."));
-    } else if (unknownUid) {
+    } else if (status === "uid-unknown") {
       findings.push(finding(rel, mainScene.line, "project-main-scene-missing", "warning",
         `Main scene ${mainScene.string} matches no scene uid in the project.`,
         "Point run/main_scene at an existing scene (res:// path or its uid)."));
@@ -224,11 +254,15 @@ export function validateProjectConfig(root: string, config?: ResolvedConfig): Fi
     for (const [name, v] of Object.entries(autoload.properties)) {
       if (v.kind !== "string" || !v.string) continue;
       const p = v.string.replace(/^\*/, ""); // leading * marks an enabled singleton
-      const { abs } = resolveRef(p);
-      if (abs && !existsInProject(root, abs)) {
+      const { status } = resolvePathOrUid(root, p, uids);
+      if (status === "missing") {
         findings.push(finding(rel, v.line, "project-autoload-missing", "error",
           `Autoload "${name}" points at a missing file: ${p}`,
           "Fix the autoload path or restore the file."));
+      } else if (status === "uid-unknown") {
+        findings.push(finding(rel, v.line, "project-autoload-missing", "warning",
+          `Autoload "${name}" uses ${p}, which matches no uid in the project.`,
+          "Point the autoload at an existing file (res:// path or its uid)."));
       }
     }
   }
@@ -278,6 +312,7 @@ export function validateRegistries(root: string, config?: ResolvedConfig): Regis
   const exclude = picomatch(cfg.exclude, { dot: true });
   const findings: Finding[] = [];
   const entries: RegistryEntry[] = [];
+  const uids = lazyUidIndex(root);
 
   for (const configured of cfg.registryDirs) {
     const dirRel = configured.replace(/^res:\/\//, "");
@@ -313,13 +348,17 @@ export function validateRegistries(root: string, config?: ResolvedConfig): Regis
       if (scriptRef?.kind === "extResource" && scriptRef.ref) {
         const decl = byId.get(scriptRef.ref);
         const path = decl?.attributes["path"]?.string;
-        const abs = path ? resolveResPath(root, path) : null;
-        if (!decl || !existsInProject(root, abs)) {
+        const uidAttr = decl?.attributes["uid"]?.string;
+        const uid = uidAttr?.startsWith("uid://") ? uidAttr : undefined;
+        // Same uid-first resolution as scenes: a stale path with a valid uid
+        // still loads the uid's script.
+        const r = decl ? resolveReference(root, path, uid, uids) : null;
+        if (!r || !r.loads) {
           findings.push(finding(rel, scriptRef.line, "registry-script-missing", "error",
-            `Registry script target does not exist: ${path ?? scriptRef.ref}`,
+            `Registry script target does not exist: ${path ?? uid ?? scriptRef.ref}`,
             "Fix the script ext_resource path or restore the .gd."));
         } else {
-          scriptClass = readClassName(abs);
+          scriptClass = readClassName(r.loads);
         }
       }
       entries.push({ file: rel, scriptClass });

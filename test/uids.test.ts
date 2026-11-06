@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { validateProjectConfig, validateScenes } from "../src/scenes/validate.js";
+import { validateProjectConfig, validateRegistries, validateScenes } from "../src/scenes/validate.js";
 import { buildUidIndex, normalizeResPath } from "../src/scenes/uids.js";
 
 const tmp = mkdtempSync(join(tmpdir(), "gdc-uid-"));
@@ -105,5 +105,51 @@ describe("ext_resource uid validation", () => {
     expect(validateProjectConfig(bad).map((f) => `${f.ruleId}:${f.severity}`)).toEqual([
       "project-main-scene-missing:warning",
     ]);
+  });
+
+  it("reports autoloads whose uid matches nothing", () => {
+    const root = project("autoload-uid-bad", {
+      ...BASE,
+      "project.godot": '[autoload]\nGame="*uid://doesnotexist"\nP="*uid://bplayer"\n',
+    });
+    expect(validateProjectConfig(root).map((f) => `${f.ruleId}@${f.line}:${f.severity}`)).toEqual([
+      "project-autoload-missing@2:warning",
+    ]);
+  });
+});
+
+describe("registry script resolution uses uids", () => {
+  const registry = (ext: string): string =>
+    `[gd_resource type="Resource" script_class="Item" load_steps=2 format=3]\n\n${ext}\n\n` +
+    '[resource]\nscript = ExtResource("1_s")\n';
+  const cfg = JSON.stringify({ registryDirs: ["data"] });
+  const item = { "item.gd": "class_name Item\nextends Resource\n", "item.gd.uid": "uid://bitem\n" };
+
+  it("follows a valid uid when the path is stale, and resolves class_name", () => {
+    const root = project("reg-stale", {
+      ...item,
+      "godot-correctness.config.json": cfg,
+      "data/sword.tres": registry('[ext_resource type="Script" uid="uid://bitem" path="res://old/item.gd" id="1_s"]'),
+    });
+    const r = validateRegistries(root);
+    expect(r.findings).toEqual([]);
+    expect(r.entries).toEqual([{ file: "data/sword.tres", scriptClass: "Item" }]);
+  });
+
+  it("resolves uid-only script references", () => {
+    const root = project("reg-uid-only", {
+      ...item,
+      "godot-correctness.config.json": cfg,
+      "data/sword.tres": registry('[ext_resource type="Script" uid="uid://bitem" id="1_s"]'),
+    });
+    expect(validateRegistries(root).entries).toEqual([{ file: "data/sword.tres", scriptClass: "Item" }]);
+  });
+
+  it("still errors when neither path nor uid resolves", () => {
+    const root = project("reg-missing", {
+      "godot-correctness.config.json": cfg,
+      "data/sword.tres": registry('[ext_resource type="Script" uid="uid://bnope" path="res://old/item.gd" id="1_s"]'),
+    });
+    expect(validateRegistries(root).findings.map((f) => f.ruleId)).toEqual(["registry-script-missing"]);
   });
 });
