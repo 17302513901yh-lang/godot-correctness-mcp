@@ -45,6 +45,8 @@ describe("near-miss negatives", () => {
   const cases: [rule: string, source: string][] = [
     ["get-node-in-process", "extends Node\n\nfunc _ready() -> void:\n\tvar s: Sprite2D = $Sprite2D\n\ts.visible = true\n"],
     ["missing-onready", "extends Node\n\n@onready var label: Label = $Label\n"],
+    ["missing-onready", "extends Node\n\n@onready\nvar label: Label = $Label\n"],
+    ["missing-onready", 'extends Node\n\n@onready\n@warning_ignore("unused_private_class_variable")\nvar _l: Label = $Label\n'],
     ["await-misuse", "extends Node\n\nfunc f() -> void:\n\tawait get_tree().create_timer(1.0).timeout\n"],
     [
       "connect-without-disconnect",
@@ -108,6 +110,22 @@ describe("delta-misuse true positives", () => {
   it("is quiet without move_and_slide()", async () => {
     const src = "extends Node2D\n\nfunc _physics_process(delta: float) -> void:\n\tvar velocity := Vector2.RIGHT * 10.0 * delta\n";
     expect((await lint(src)).filter((f) => f.startsWith("delta-misuse@"))).toEqual([]);
+  });
+});
+
+describe("missing-onready own-line annotations", () => {
+  it("still flags a declaration whose preceding annotation is not @onready", async () => {
+    const src = 'extends Node\n\n@export_group("UI")\nvar label: Label = $Label\n';
+    expect((await lint(src)).filter((f) => f.startsWith("missing-onready@"))).toEqual([
+      "missing-onready@4:1:warning",
+    ]);
+  });
+
+  it("does not borrow an @onready from an earlier, separate declaration", async () => {
+    const src = "extends Node\n\n@onready\nvar a: Label = $A\nvar b: Label = $B\n";
+    expect((await lint(src)).filter((f) => f.startsWith("missing-onready@"))).toEqual([
+      "missing-onready@5:1:warning",
+    ]);
   });
 });
 

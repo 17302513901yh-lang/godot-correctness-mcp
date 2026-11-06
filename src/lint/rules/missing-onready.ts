@@ -12,15 +12,22 @@ function isNodeLookup(value: Node | null, source: string): boolean {
   return false;
 }
 
+function isOnready(a: Node, source: string): boolean {
+  if (a.type !== "annotation") return false;
+  const id = a.namedChild(0);
+  return !!id && text(id, source) === "onready";
+}
+
 function hasOnready(vs: Node, source: string): boolean {
+  // Same line: `@onready var a = $A` (an `annotations` child).
   for (const c of vs.namedChildren) {
     if (c?.type !== "annotations") continue;
-    for (const a of walk(c)) {
-      if (a.type === "annotation") {
-        const id = a.namedChild(0);
-        if (id && text(id, source) === "onready") return true;
-      }
-    }
+    for (const a of walk(c)) if (isOnready(a, source)) return true;
+  }
+  // Own line(s) above: `@onready` / `@export_group(...)` parse as preceding
+  // standalone `annotation` siblings of the declaration.
+  for (let s = vs.previousNamedSibling; s && (s.type === "annotation" || s.type === "annotations"); s = s.previousNamedSibling) {
+    for (const a of walk(s)) if (isOnready(a, source)) return true;
   }
   return false;
 }
