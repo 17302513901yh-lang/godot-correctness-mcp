@@ -127,3 +127,23 @@ describe("api tools errors", () => {
     expect(r.isError).toBe(true);
   });
 });
+
+describe("CLI, MCP tools and report agree", () => {
+  it("validate-scenes, validate_scenes and the report's scenes are identical", async () => {
+    const { runCli } = await import("../src/cli.js");
+    const { projectReport, reportFindings } = await import("../src/scenes/report.js");
+    const root = fixture("scene-project");
+    let out = "";
+    await runCli(["validate-scenes", root], (s) => (out += s), () => {});
+    const cliFindings = JSON.parse(out).findings;
+    const tool = (await call("validate_scenes", { path: root })).body.findings;
+    const report = await projectReport(root);
+    expect(cliFindings.length).toBeGreaterThan(0);
+    expect(tool).toEqual(cliFindings);
+    expect(report.scenes).toEqual(cliFindings);
+
+    out = "";
+    await runCli(["report", root], (s) => (out += s), () => {});
+    expect(reportFindings(JSON.parse(out))).toEqual(reportFindings(report));
+  });
+});

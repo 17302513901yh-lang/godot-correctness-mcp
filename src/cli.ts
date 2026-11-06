@@ -5,9 +5,8 @@ import { lintProject } from "./lint/project.js";
 import type { Finding } from "./lint/types.js";
 import { requireDir } from "./project/walk.js";
 import { toSarif } from "./sarif.js";
-import { validateNodePaths } from "./scenes/node-paths.js";
-import { projectReport } from "./scenes/report.js";
-import { validateProjectConfig, validateRegistries, validateScenes } from "./scenes/validate.js";
+import { projectReport, reportFindings, validateSceneFiles } from "./scenes/report.js";
+import { validateProjectConfig, validateRegistries } from "./scenes/validate.js";
 import { readVersion } from "./server-info.js";
 
 const FORMATS = ["json", "pretty", "sarif"] as const;
@@ -40,7 +39,7 @@ async function runCommand(command: string, root: string): Promise<CommandResult>
       return { root, findings: r.findings, payload: r };
     }
     case "validate-scenes": {
-      const findings = [...validateScenes(root), ...(await validateNodePaths(root))];
+      const findings = await validateSceneFiles(root);
       return { root, findings, payload: { root, findings, count: findings.length } };
     }
     case "validate-project": {
@@ -53,11 +52,7 @@ async function runCommand(command: string, root: string): Promise<CommandResult>
     }
     case "report": {
       const r = await projectReport(root);
-      return {
-        root,
-        findings: [...r.scenes, ...r.project, ...r.registries, ...r.lint],
-        payload: r,
-      };
+      return { root, findings: reportFindings(r), payload: r };
     }
     default:
       throw new Error(`Unknown command: ${command}`);

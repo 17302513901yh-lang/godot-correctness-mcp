@@ -1,12 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { validateNodePaths } from "../scenes/node-paths.js";
-import { projectReport } from "../scenes/report.js";
-import {
-  validateProjectConfig,
-  validateRegistries,
-  validateScenes,
-} from "../scenes/validate.js";
+import { projectReport, validateSceneFiles } from "../scenes/report.js";
+import { validateProjectConfig, validateRegistries } from "../scenes/validate.js";
 import { requireDir } from "../project/walk.js";
 import { guard } from "./result.js";
 
@@ -29,7 +24,7 @@ export function registerSceneTools(server: McpServer): void {
     async ({ path }) =>
       guard(async () => {
         requireDir(path);
-        const findings = [...validateScenes(path), ...(await validateNodePaths(path))];
+        const findings = await validateSceneFiles(path);
         return { root: path, findings, count: findings.length };
       }),
   );

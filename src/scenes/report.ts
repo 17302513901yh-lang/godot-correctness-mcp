@@ -22,19 +22,34 @@ export interface ProjectReport {
   totalFindings: number;
 }
 
+/**
+ * Every check behind validate_scenes / `gdcorrect validate-scenes`: .tscn
+ * structure plus node-path literals in attached scripts. The CLI, the MCP tool
+ * and the report all call this, so a new scene check is wired in one place.
+ */
+export async function validateSceneFiles(root: string, config?: ResolvedConfig): Promise<Finding[]> {
+  const cfg = config ?? loadConfig(root);
+  return [...validateScenes(root, cfg), ...(await validateNodePaths(root, cfg))];
+}
+
+/** Every finding in a report, across all categories. */
+export function reportFindings(r: ProjectReport): Finding[] {
+  return [...r.scenes, ...r.project, ...r.registries, ...r.lint];
+}
+
 /** Aggregate every static check (scenes, project config, registries, lint). */
 export async function projectReport(
   root: string,
   config?: ResolvedConfig,
 ): Promise<ProjectReport> {
   const cfg = config ?? loadConfig(root);
-  const scenes = [...validateScenes(root, cfg), ...(await validateNodePaths(root, cfg))];
+  const scenes = await validateSceneFiles(root, cfg);
   const project = validateProjectConfig(root, cfg);
   const reg = validateRegistries(root, cfg);
   const lint = (await lintProject(root, cfg)).findings;
 
   const all = [...scenes, ...project, ...reg.findings, ...lint];
-  return {
+  const report: ProjectReport = {
     root,
     scenes,
     project,
@@ -46,4 +61,5 @@ export async function projectReport(
     infoCount: all.filter((f) => f.severity === "info").length,
     totalFindings: all.length,
   };
+  return report;
 }
