@@ -155,6 +155,35 @@ describe("config handling", () => {
     expect(validateRegistries(root).findings.map((f) => f.ruleId)).toEqual(["registry-dangling-path"]);
   });
 
+  it("reports missing, res:// and out-of-root registryDirs entries", () => {
+    const item = '[gd_resource type="Resource" format=3]\n\n[resource]\nicon_path = "res://missing.png"\n';
+    const root = project("reg-dirs", {
+      "godot-correctness.config.json": JSON.stringify({ registryDirs: ["res://data", "dta", "../outside"] }),
+      "data/item.tres": item,
+    });
+    project("outside", { "evil.tres": item });
+    const findings = validateRegistries(root).findings;
+    expect(findings.map((f) => `${f.file}:${f.ruleId}`)).toEqual([
+      "data/item.tres:registry-dangling-path",
+      "godot-correctness.config.json:registry-dir-missing",
+      "godot-correctness.config.json:registry-dir-missing",
+    ]);
+    expect(findings[2]!.message).toContain("outside the project root");
+  });
+
+  it("treats res:// paths that escape the project root as missing without probing them", () => {
+    const root = project("escape", {
+      "project.godot": '[application]\nrun/main_scene="res://../escape-target.tscn"\n',
+      "Main.tscn":
+        '[gd_scene format=3]\n\n[ext_resource type="Script" path="res://../escape-target.gd" id="1"]\n\n' +
+        '[node name="Root" type="Node"]\nscript = ExtResource("1")\n',
+    });
+    // The targets exist on disk, but outside the root, so they count as missing.
+    project("", { "escape-target.tscn": "[gd_scene format=3]\n", "escape-target.gd": "extends Node\n" });
+    expect(validateProjectConfig(root).map((f) => f.ruleId)).toContain("project-main-scene-missing");
+    expect(validateScenes(root).map((f) => f.ruleId)).toContain("scene-ext-resource-missing");
+  });
+
   it("CLI exits 2 with the config file named on malformed JSON", async () => {
     const root = project("bad-json", { "godot-correctness.config.json": "{ nope" });
     let err = "";

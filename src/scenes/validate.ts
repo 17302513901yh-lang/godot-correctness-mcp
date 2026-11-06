@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import picomatch from "picomatch";
 import {
@@ -8,11 +8,11 @@ import {
   type GodotFile,
   type GodotSection,
 } from "../godot/text-format.js";
-import { loadConfig, type ResolvedConfig } from "../lint/config.js";
+import { CONFIG_FILENAME, loadConfig, type ResolvedConfig } from "../lint/config.js";
 import type { Finding, Severity } from "../lint/types.js";
 import { walkProject } from "../project/walk.js";
 import { checkInputActionUsage } from "./input-actions.js";
-import { looksLikeResourcePath, resolveResPath } from "./paths.js";
+import { existsInProject, isInsideRoot, looksLikeResourcePath, resolveResPath } from "./paths.js";
 import { checkConnections, checkNodeParents, checkSubResourceRefs } from "./scene-graph.js";
 import { buildUidIndex, normalizeResPath, type UidIndex } from "./uids.js";
 
@@ -90,7 +90,7 @@ function checkExtResource(
   const uidAttr = s.attributes["uid"]?.string;
   const uid = uidAttr?.startsWith("uid://") ? uidAttr : undefined;
   const abs = path ? resolveResPath(root, path) : null;
-  const pathOk = abs !== null && existsSync(abs);
+  const pathOk = existsInProject(root, abs);
 
   if (!uid) {
     if (abs && !pathOk) {
@@ -102,7 +102,7 @@ function checkExtResource(
 
   const target = uids().get(uid);
   const targetAbs = target ? resolveResPath(root, target) : null;
-  const targetOk = targetAbs !== null && existsSync(targetAbs);
+  const targetOk = existsInProject(root, targetAbs);
 
   if (path && abs) {
     if (!pathOk) {
@@ -208,7 +208,7 @@ export function validateProjectConfig(root: string, config?: ResolvedConfig): Fi
 
   if (mainScene?.kind === "string" && mainScene.string) {
     const { abs, unknownUid } = resolveRef(mainScene.string);
-    if (abs && !existsSync(abs)) {
+    if (abs && !existsInProject(root, abs)) {
       findings.push(finding(rel, mainScene.line, "project-main-scene-missing", "error",
         `Main scene does not exist: ${mainScene.string}`, "Fix run/main_scene or restore the scene."));
     } else if (unknownUid) {
@@ -224,7 +224,7 @@ export function validateProjectConfig(root: string, config?: ResolvedConfig): Fi
       if (v.kind !== "string" || !v.string) continue;
       const p = v.string.replace(/^\*/, ""); // leading * marks an enabled singleton
       const { abs } = resolveRef(p);
-      if (abs && !existsSync(abs)) {
+      if (abs && !existsInProject(root, abs)) {
         findings.push(finding(rel, v.line, "project-autoload-missing", "error",
           `Autoload "${name}" points at a missing file: ${p}`,
           "Fix the autoload path or restore the file."));
@@ -279,8 +279,21 @@ export function validateRegistries(root: string, config?: ResolvedConfig): Regis
   const findings: Finding[] = [];
   const entries: RegistryEntry[] = [];
 
-  for (const dirRel of cfg.registryDirs) {
+  for (const configured of cfg.registryDirs) {
+    const dirRel = configured.replace(/^res:\/\//, "");
     const dirAbs = join(root, dirRel);
+    if (!isInsideRoot(root, dirAbs)) {
+      findings.push(finding(CONFIG_FILENAME, 1, "registry-dir-missing", "error",
+        `registryDirs entry "${configured}" is outside the project root and was not scanned.`,
+        "Use a directory relative to the project root (res:// is also accepted)."));
+      continue;
+    }
+    if (!existsSync(dirAbs) || !statSync(dirAbs).isDirectory()) {
+      findings.push(finding(CONFIG_FILENAME, 1, "registry-dir-missing", "error",
+        `registryDirs entry "${configured}" does not exist, so no registries were validated there.`,
+        "Fix the directory name in godot-correctness.config.json."));
+      continue;
+    }
     for (const { full, rel } of walkProject(root, { exts: [".tres"], exclude }, dirAbs)) {
       const file = parseGodotFile(readFileSync(full, "utf-8"));
 
@@ -301,7 +314,7 @@ export function validateRegistries(root: string, config?: ResolvedConfig): Regis
         const decl = byId.get(scriptRef.ref);
         const path = decl?.attributes["path"]?.string;
         const abs = path ? resolveResPath(root, path) : null;
-        if (!decl || !abs || !existsSync(abs)) {
+        if (!decl || !existsInProject(root, abs)) {
           findings.push(finding(rel, scriptRef.line, "registry-script-missing", "error",
             `Registry script target does not exist: ${path ?? scriptRef.ref}`,
             "Fix the script ext_resource path or restore the .gd."));
@@ -316,7 +329,7 @@ export function validateRegistries(root: string, config?: ResolvedConfig): Regis
         for (const [key, v] of Object.entries(section.properties)) {
           if (!looksLikeResourcePath(v, key, cfg.pathPropertyPatterns)) continue;
           const abs = resolveResPath(root, v.string ?? "");
-          if (abs && !existsSync(abs)) {
+          if (abs && !existsInProject(root, abs)) {
             findings.push(finding(rel, v.line, "registry-dangling-path", "error",
               `Property "${key}" points at a missing resource: ${v.string}`,
               "Fix the path or restore the referenced file. These fail only at runtime scene load."));

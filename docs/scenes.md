@@ -49,6 +49,7 @@ For each directory in `registryDirs`, every `.tres`:
 | `registry-parse-error` | error | File is not a valid Godot text resource (no `gd_resource` header). |
 | `registry-script-missing` | error | The resource's script `ext_resource` does not resolve to an existing `.gd`. |
 | `registry-dangling-path` | error | A string property that looks like a resource path points at a missing file. |
+| `registry-dir-missing` | error | A `registryDirs` entry does not exist or lies outside the project root (reported against `godot-correctness.config.json`). A leading `res://` is accepted. |
 
 When a resource's script resolves and declares `class_name`, that name is
 recorded per entry in the result. The dangling-path check is why this pillar

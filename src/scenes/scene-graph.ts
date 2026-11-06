@@ -3,7 +3,7 @@ import { resourceRefPattern, sectionsOfKind, type GodotFile, type GodotSection }
 import type { Finding } from "../lint/types.js";
 import { availableVersions, loadSymbolDb } from "../symbols/db.js";
 import type { SymbolDb } from "../symbols/schema.js";
-import { resolveResPath } from "./paths.js";
+import { isInsideRoot, resolveResPath } from "./paths.js";
 
 function finding(file: string, line: number, ruleId: string, message: string, suggestion: string): Finding {
   return { file, line, col: 1, ruleId, severity: "error", message, suggestion };
@@ -190,7 +190,7 @@ export function checkConnections(rel: string, file: GodotFile, root: string): Fi
     if (script?.kind !== "extResource" || !script.ref) continue;
     const resPath = extPaths.get(script.ref);
     const abs = resPath ? resolveResPath(root, resPath) : null;
-    const info = abs ? scriptInfo(abs) : null;
+    const info = abs && isInsideRoot(root, abs) ? scriptInfo(abs) : null;
     if (!info) continue; // missing scripts are reported elsewhere
 
     const ext = info.ext;

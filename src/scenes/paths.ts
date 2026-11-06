@@ -1,6 +1,22 @@
-import { join } from "node:path";
+import { existsSync } from "node:fs";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import picomatch from "picomatch";
 import type { GodotValue } from "../godot/text-format.js";
+
+/** Whether `abs` is the project root or lies under it (after normalisation). */
+export function isInsideRoot(projectRoot: string, abs: string): boolean {
+  const r = relative(resolve(projectRoot), resolve(abs));
+  return r === "" || (r !== ".." && !r.startsWith(`..${sep}`) && !isAbsolute(r));
+}
+
+/**
+ * Whether a resolved project path exists. Paths that escape the project root
+ * (`res://../x`) are never probed and count as missing, since Godot cannot
+ * load them either.
+ */
+export function existsInProject(projectRoot: string, abs: string | null): abs is string {
+  return abs !== null && isInsideRoot(projectRoot, abs) && existsSync(abs);
+}
 
 /**
  * Resolve a Godot path to an absolute filesystem path against the project root.
