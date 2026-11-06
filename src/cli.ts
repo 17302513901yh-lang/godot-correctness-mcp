@@ -5,6 +5,7 @@ import { effectiveRules } from "./lint/catalog.js";
 import { loadConfig, type ResolvedConfig } from "./lint/config.js";
 import { lintProject } from "./lint/project.js";
 import type { Finding } from "./lint/types.js";
+import { changedSince, toProjectPaths } from "./project/changed.js";
 import { requireDir } from "./project/walk.js";
 import { toSarif } from "./sarif.js";
 import { projectReport, reportFindings, validateSceneFiles } from "./scenes/report.js";
@@ -33,11 +34,11 @@ const COMMANDS = new Set([
   "report",
 ]);
 
-async function runCommand(command: string, root: string): Promise<CommandResult> {
+async function runCommand(command: string, root: string, only?: string[]): Promise<CommandResult> {
   requireDir(root);
   switch (command) {
     case "lint": {
-      const r = await lintProject(root);
+      const r = await lintProject(root, undefined, { only });
       return { root, findings: r.findings, payload: r };
     }
     case "validate-scenes": {
@@ -109,6 +110,9 @@ interface CliArgs {
   baseline?: string;
   writeBaseline?: string;
   failOn: string;
+  /** --files (repeatable, comma-separated). */
+  files: string[];
+  changedSince?: string;
   help: boolean;
   version: boolean;
 }
@@ -116,17 +120,19 @@ interface CliArgs {
 class UsageError extends Error {}
 
 /** Options that take a value, as `--flag value` or `--flag=value`. */
-const VALUE_FLAGS: Record<string, "format" | "baseline" | "writeBaseline" | "failOn"> = {
+const VALUE_FLAGS: Record<string, "format" | "baseline" | "writeBaseline" | "failOn" | "files" | "changedSince"> = {
   "--format": "format",
   "-f": "format",
   "--baseline": "baseline",
   "--write-baseline": "writeBaseline",
   "--fail-on": "failOn",
+  "--files": "files",
+  "--changed-since": "changedSince",
 };
 
 /** Parse argv strictly: unknown options, missing values and extra arguments are usage errors. */
 export function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = { format: "json", failOn: "error", help: false, version: false };
+  const args: CliArgs = { format: "json", failOn: "error", files: [], help: false, version: false };
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
@@ -147,7 +153,8 @@ export function parseArgs(argv: string[]): CliArgs {
       if (eq > 0) value = a.slice(eq + 1);
       else if (argv[i + 1] !== undefined && !argv[i + 1]!.startsWith("-")) value = argv[++i];
       if (!value) throw new UsageError(`Option ${name} needs a value.`);
-      args[key] = value;
+      if (key === "files") args.files.push(...value.split(",").map((f) => f.trim()).filter(Boolean));
+      else args[key] = value;
       continue;
     }
     positional.push(a);
@@ -185,6 +192,9 @@ Options:
       --write-baseline <file>       Record current findings as the baseline, exit 0
       --fail-on <${FAIL_ON.join("|")}>
                                     Lowest severity that fails the run (default: error)
+      --files <a.gd,b.gd>           lint only: check just these files (repeatable)
+      --changed-since <git-ref>     lint only: check files changed since the ref,
+                                    plus uncommitted and untracked files
   -h, --help                        Show this help
   -v, --version                     Print the version
 
@@ -288,8 +298,23 @@ export async function runCli(
     errOut("gdcorrect: use either --baseline or --write-baseline, not both.");
     return 2;
   }
+  const narrowed = parsed.files.length > 0 || parsed.changedSince !== undefined;
+  if (narrowed && command !== "lint") {
+    // Scene and project checks span files, so a partial run would be misleading.
+    errOut("gdcorrect: --files and --changed-since only apply to the lint command.");
+    return 2;
+  }
+  if (narrowed && writeTo) {
+    errOut("gdcorrect: --write-baseline records the whole project; drop --files/--changed-since.");
+    return 2;
+  }
   try {
-    let res = await runCommand(command, root);
+    let only: string[] | undefined;
+    if (narrowed) {
+      only = toProjectPaths(root, parsed.files);
+      if (parsed.changedSince !== undefined) only.push(...changedSince(root, parsed.changedSince));
+    }
+    let res = await runCommand(command, root, only);
     if (writeTo) {
       const b = createBaseline(root, res.findings);
       writeBaseline(writeTo, b);

@@ -80,6 +80,7 @@ resources, signal hygiene, typed GDScript, preload vs load).
 | `-f`, `--format json\|pretty\|sarif` | Output format (default `json`). `sarif` emits SARIF 2.1.0 for GitHub code scanning. |
 | `--fail-on error\|warning\|info\|none` | Lowest severity that fails the run (default `error`). |
 | `--baseline <file>` / `--write-baseline <file>` | Report only new findings / record the current ones (see below). |
+| `--files a.gd,b.gd` / `--changed-since <git-ref>` | `lint` only: check just these files, or files changed since a ref (plus uncommitted and untracked ones). Handy for pre-commit hooks and PR CI. |
 | `-h`, `--help` / `-v`, `--version` | Help / package version. |
 
 Options also accept `--flag=value`. Unknown options, missing values, and extra

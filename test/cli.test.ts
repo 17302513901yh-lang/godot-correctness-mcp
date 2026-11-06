@@ -203,3 +203,54 @@ describe("baselines with other commands and formats", () => {
     expect((await cli("lint", root, "--baseline", b)).err).toContain("2 baseline entries are stale");
   });
 });
+
+describe("--files and --changed-since", () => {
+  const files = (out: string): string[] => [...new Set(JSON.parse(out).findings.map((f: { file: string }) => f.file))] as string[];
+
+  it("--files lints only the named files (relative or absolute, comma-separated or repeated)", async () => {
+    const root = project("files-flag", { "a.gd": "var a = 1\n", "b.gd": "var b = 1\n", "c/d.gd": "var d = 1\n" });
+    expect(files((await cli("lint", root, "--files", join(root, "a.gd"))).out)).toEqual(["a.gd"]);
+    expect(files((await cli("lint", root, "--files", `${join(root, "a.gd")},${join(root, "c/d.gd")}`)).out)).toEqual(["a.gd", "c/d.gd"]);
+    expect(
+      files((await cli("lint", root, "--files", join(root, "b.gd"), "--files", join(root, "c/d.gd"))).out),
+    ).toEqual(["b.gd", "c/d.gd"]);
+  });
+
+  it("still applies include/exclude to --files", async () => {
+    const root = project("files-exclude", {
+      "godot-correctness.config.json": JSON.stringify({ exclude: ["vendor/**"] }),
+      "vendor/v.gd": "var v = 1\n",
+      "a.gd": "var a = 1\n",
+    });
+    expect(files((await cli("lint", root, "--files", join(root, "vendor/v.gd"))).out)).toEqual([]);
+  });
+
+  it("is rejected for non-lint commands and with --write-baseline", async () => {
+    const root = project("files-reject", { "a.gd": "var a = 1\n" });
+    expect((await cli("report", root, "--files", "a.gd")).code).toBe(2);
+    expect((await cli("lint", root, "--files", "a.gd", "--write-baseline", join(root, "b.json"))).code).toBe(2);
+  });
+
+  it("--changed-since lints committed, uncommitted and untracked changes since a ref", async () => {
+    const { execFileSync } = await import("node:child_process");
+    const root = project("changed", { "old.gd": "var o = 1\n", "kept.gd": "var k = 1\n" });
+    const git = (...a: string[]) => execFileSync("git", ["-C", root, ...a], { stdio: "ignore" });
+    try {
+      git("init", "-q");
+    } catch {
+      return; // git unavailable
+    }
+    git("-c", "user.email=t@t", "-c", "user.name=t", "add", ".");
+    git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "base");
+    writeFileSync(join(root, "committed.gd"), "var c = 1\n");
+    git("add", "committed.gd");
+    git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "next");
+    writeFileSync(join(root, "old.gd"), "var o = 2\n"); // uncommitted change
+    writeFileSync(join(root, "new.gd"), "var n = 1\n"); // untracked
+    const r = await cli("lint", root, "--changed-since", "HEAD~1");
+    expect(r.code).toBe(0);
+    expect(files(r.out).sort()).toEqual(["committed.gd", "new.gd", "old.gd"]);
+    expect((await cli("lint", root, "--changed-since", "--bad")).code).toBe(2);
+    expect((await cli("lint", root, "--changed-since", "no-such-ref")).code).toBe(2);
+  });
+});

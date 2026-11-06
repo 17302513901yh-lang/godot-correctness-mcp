@@ -18,9 +18,17 @@ export interface ProjectLintResult {
 export async function lintProject(
   root: string,
   config?: ResolvedConfig,
+  opts: {
+    /**
+     * Restrict linting to these root-relative POSIX paths (intersected with
+     * include/exclude). Undefined lints every included file.
+     */
+    only?: Iterable<string>;
+  } = {},
 ): Promise<ProjectLintResult> {
   const cfg = config ?? loadConfig(root);
-  const files = scriptFiles(root, cfg);
+  const only = opts.only ? new Set(opts.only) : null;
+  const files = scriptFiles(root, cfg).filter(({ rel }) => !only || only.has(rel));
 
   const findings: Finding[] = [];
   for (const { full, rel } of files) {
