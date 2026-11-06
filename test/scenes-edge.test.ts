@@ -184,6 +184,25 @@ describe("config handling", () => {
     expect(validateScenes(root).map((f) => f.ruleId)).toContain("scene-ext-resource-missing");
   });
 
+  it("rejects unknown rule ids and misspelled rule-config keys", async () => {
+    for (const [name, rules, needle] of [
+      ["typo-id", { "untyped-decl": { enabled: false } }, 'Unknown rule id "untyped-decl"'],
+      ["typo-key", { "float-grid-equality": { enable: false } }, "enable"],
+    ] as const) {
+      const root = project(name, { "godot-correctness.config.json": JSON.stringify({ rules }) });
+      let err = "";
+      expect(await runCli(["lint", root], noop, (s) => (err += s))).toBe(2);
+      expect(err).toContain(needle);
+    }
+    // Scene/project rule ids and unused-suppression are valid keys.
+    const ok = project("known-ids", {
+      "godot-correctness.config.json": JSON.stringify({
+        rules: { "scene-node-path-missing": { enabled: false }, "unused-suppression": { severity: "warning" } },
+      }),
+    });
+    expect(await runCli(["lint", ok], noop, noop)).toBe(0);
+  });
+
   it("CLI exits 2 with the config file named on malformed JSON", async () => {
     const root = project("bad-json", { "godot-correctness.config.json": "{ nope" });
     let err = "";

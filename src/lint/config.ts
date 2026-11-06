@@ -1,17 +1,21 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
+import { RULE_INFO } from "./catalog.js";
 import type { Finding, Severity } from "./types.js";
 
 export const CONFIG_FILENAME = "godot-correctness.config.json";
 
 const severitySchema = z.enum(["error", "warning", "info"]);
 
-const ruleConfigSchema = z.object({
-  enabled: z.boolean().optional(),
-  severity: severitySchema.optional(),
-  options: z.record(z.string(), z.unknown()).optional(),
-});
+const ruleConfigSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    severity: severitySchema.optional(),
+    options: z.record(z.string(), z.unknown()).optional(),
+  })
+  // A typo like "enable" or "sevrity" must fail loudly, like top-level keys.
+  .strict();
 export type RuleConfig = z.infer<typeof ruleConfigSchema>;
 
 export const configSchema = z
@@ -25,7 +29,20 @@ export const configSchema = z
     /** Globs to exclude. */
     exclude: z.array(z.string()).optional(),
     /** Per-rule enable/disable, severity override, and options. */
-    rules: z.record(z.string(), ruleConfigSchema).optional(),
+    rules: z
+      .record(z.string(), ruleConfigSchema)
+      .superRefine((rules, ctx) => {
+        for (const id of Object.keys(rules)) {
+          if (!RULE_INFO.has(id)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: [id],
+              message: `Unknown rule id "${id}". Known rules: ${[...RULE_INFO.keys()].join(", ")}.`,
+            });
+          }
+        }
+      })
+      .optional(),
     /** Directories of data-driven .tres registries to deep-validate. */
     registryDirs: z.array(z.string()).optional(),
     /** Property-name globs to treat as resource paths. */

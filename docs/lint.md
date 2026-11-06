@@ -57,9 +57,11 @@ defaults apply when the file is absent. See
 - `rules.<id>.options`: per-rule options (currently read by `removed-api-usage`).
 - `registryDirs`, `pathPropertyPatterns`: used by the registry validator (see [scenes.md](scenes.md)).
 
-Unknown top-level keys (for example a typo like `exlude`) are rejected with an
-error naming the config file, rather than silently ignored. `$schema` and
-`$comment` are allowed.
+Unknown top-level keys (for example a typo like `exlude`), unknown rule ids in
+`rules`, and unknown keys inside a rule entry (for example `enable` or
+`sevrity`) are rejected with an error naming the config file, rather than
+silently ignored. `$schema` and `$comment` are allowed. A `registryDirs` entry
+that does not exist is reported as `registry-dir-missing`.
 
 `lint_file` and `lint_project` use the same config: `lint_file` loads it from
 the nearest ancestor directory that contains `godot-correctness.config.json` or
