@@ -7,7 +7,7 @@ import { parseGodotFile, type GodotValue } from "../src/godot/text-format.js";
 import { DEFAULT_PATH_PROPERTY_PATTERNS } from "../src/lint/config.js";
 import { lintProject } from "../src/lint/project.js";
 import { looksLikeResourcePath, resolveResPath } from "../src/scenes/paths.js";
-import { validateProjectConfig, validateRegistries } from "../src/scenes/validate.js";
+import { validateProjectConfig, validateRegistries, validateScenes } from "../src/scenes/validate.js";
 
 const tmp = mkdtempSync(join(tmpdir(), "gdc-edge-"));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
@@ -25,6 +25,34 @@ function project(name: string, files: Record<string, string>): string {
 }
 
 const noop = (): void => {};
+
+describe("resource reference parsing", () => {
+  const prop = (value: string): GodotValue =>
+    parseGodotFile(`[gd_scene format=3]\n[node name="R" type="Node"]\nv = ${value}\n`).sections[0]!.properties["v"]!;
+
+  it("reads quoted, unquoted and padded ids", () => {
+    expect(prop('ExtResource("1_abc")')).toMatchObject({ kind: "extResource", ref: "1_abc" });
+    expect(prop('ExtResource( "1_abc" )')).toMatchObject({ kind: "extResource", ref: "1_abc" });
+    expect(prop("ExtResource(3)")).toMatchObject({ kind: "extResource", ref: "3" });
+    expect(prop('SubResource("Shape_x")')).toMatchObject({ kind: "subResource", ref: "Shape_x" });
+  });
+
+  it("stays fast on long malformed values", () => {
+    const start = performance.now();
+    for (const kind of ["ExtResource", "SubResource"]) {
+      expect(prop(`${kind}(${" ".repeat(50_000)}x`).kind).toBe("other");
+    }
+    const root = project("long-malformed", {
+      "project.godot": "[application]\n",
+      "a.tscn":
+        `[gd_scene format=3]\n[node name="R" type="Node"]\nfoo = ExtResource(${" ".repeat(50_000)}x\n` +
+        `bar = [SubResource(${" ".repeat(50_000)}x]\n`,
+      "s.gd": `${"\n".repeat(200_000)}class_name Foo\n`,
+    });
+    validateScenes(root);
+    expect(performance.now() - start).toBeLessThan(2000);
+  });
+});
 
 describe("parseGodotFile robustness", () => {
   const scene =

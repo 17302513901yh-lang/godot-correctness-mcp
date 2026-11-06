@@ -1,5 +1,5 @@
 import { readFileSync, statSync } from "node:fs";
-import { sectionsOfKind, type GodotFile, type GodotSection } from "../godot/text-format.js";
+import { resourceRefPattern, sectionsOfKind, type GodotFile, type GodotSection } from "../godot/text-format.js";
 import type { Finding } from "../lint/types.js";
 import { availableVersions, loadSymbolDb } from "../symbols/db.js";
 import type { SymbolDb } from "../symbols/schema.js";
@@ -9,7 +9,7 @@ function finding(file: string, line: number, ruleId: string, message: string, su
   return { file, line, col: 1, ruleId, severity: "error", message, suggestion };
 }
 
-const SUB_REF_RE = /SubResource\(\s*"?([^")]*)"?\s*\)/g;
+const SUB_REF_RE = resourceRefPattern("SubResource");
 
 /** Every SubResource("id") reference must match a [sub_resource id=...] in the same file. */
 export function checkSubResourceRefs(rel: string, file: GodotFile): Finding[] {
@@ -23,11 +23,12 @@ export function checkSubResourceRefs(rel: string, file: GodotFile): Finding[] {
     for (const v of [...Object.values(section.attributes), ...Object.values(section.properties)]) {
       if (!v.raw.includes("SubResource")) continue;
       for (const m of v.raw.matchAll(SUB_REF_RE)) {
-        if (!m[1] || declared.has(m[1])) continue;
+        const ref = m[1] ?? m[2];
+        if (!ref || declared.has(ref)) continue;
         const offset = v.raw.slice(0, m.index).split("\n").length - 1;
         out.push(
           finding(rel, v.line + offset, "scene-missing-sub-resource-id",
-            `SubResource("${m[1]}") is not declared in this file.`,
+            `SubResource("${ref}") is not declared in this file.`,
             "Add the [sub_resource] declaration or fix the id."),
         );
       }

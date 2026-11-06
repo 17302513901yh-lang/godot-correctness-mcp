@@ -3,6 +3,7 @@ import { join } from "node:path";
 import picomatch from "picomatch";
 import {
   parseGodotFile,
+  resourceRefPattern,
   sectionsOfKind,
   type GodotFile,
   type GodotSection,
@@ -42,7 +43,7 @@ function extResourceIndex(file: GodotFile): {
   return { byId, duplicates };
 }
 
-const EXT_REF_RE = /ExtResource\(\s*"?([^")]*)"?\s*\)/g;
+const EXT_REF_RE = resourceRefPattern("ExtResource");
 
 /**
  * Collect all ExtResource("id") references in a section: header attributes
@@ -55,9 +56,10 @@ function extRefs(section: GodotSection): { key: string; ref: string; line: numbe
   for (const [key, v] of values) {
     if (!v.raw.includes("ExtResource")) continue;
     for (const m of v.raw.matchAll(EXT_REF_RE)) {
-      if (!m[1]) continue;
+      const ref = m[1] ?? m[2];
+      if (!ref) continue;
       const offset = v.raw.slice(0, m.index).split("\n").length - 1;
-      refs.push({ key, ref: m[1], line: v.line + offset });
+      refs.push({ key, ref, line: v.line + offset });
     }
   }
   return refs;
@@ -253,7 +255,7 @@ export function validateProjectConfig(root: string, config?: ResolvedConfig): Fi
 
 function readClassName(gdAbsPath: string): string | null {
   try {
-    const m = /^\s*class_name\s+(\w+)/m.exec(readFileSync(gdAbsPath, "utf-8"));
+    const m = /^[ \t]*class_name[ \t]+(\w+)/m.exec(readFileSync(gdAbsPath, "utf-8"));
     return m ? m[1] : null;
   } catch {
     return null;

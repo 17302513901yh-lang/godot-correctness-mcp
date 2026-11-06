@@ -43,17 +43,30 @@ export interface GodotFile {
 
 const HEADER_KINDS = new Set(["gd_scene", "gd_resource"]);
 
+/**
+ * `ExtResource("id")` / `SubResource("id")` reference pattern. The quoted and
+ * unquoted id alternatives cannot overlap the surrounding whitespace, so
+ * matching stays linear on malformed input. The id is `m[1] ?? m[2]`.
+ */
+export function resourceRefPattern(kind: "ExtResource" | "SubResource", anchored = false): RegExp {
+  const body = String.raw`${kind}\(\s*(?:"([^"]*)"|([^"()\s]+))\s*\)`;
+  return anchored ? new RegExp(`^${body}$`) : new RegExp(body, "g");
+}
+
+const EXT_REF_ANCHORED = resourceRefPattern("ExtResource", true);
+const SUB_REF_ANCHORED = resourceRefPattern("SubResource", true);
+
 function classifyValue(raw: string, line: number): GodotValue {
   const t = raw.trim();
   let m: RegExpExecArray | null;
   if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
     return { raw: t, line, kind: "string", string: t.slice(1, -1) };
   }
-  if ((m = /^ExtResource\(\s*"?([^")]*)"?\s*\)$/.exec(t))) {
-    return { raw: t, line, kind: "extResource", ref: m[1] };
+  if ((m = EXT_REF_ANCHORED.exec(t))) {
+    return { raw: t, line, kind: "extResource", ref: m[1] ?? m[2] };
   }
-  if ((m = /^SubResource\(\s*"?([^")]*)"?\s*\)$/.exec(t))) {
-    return { raw: t, line, kind: "subResource", ref: m[1] };
+  if ((m = SUB_REF_ANCHORED.exec(t))) {
+    return { raw: t, line, kind: "subResource", ref: m[1] ?? m[2] };
   }
   if (/^-?\d+(\.\d+)?$/.test(t)) return { raw: t, line, kind: "number" };
   if (t === "true" || t === "false") return { raw: t, line, kind: "bool" };
